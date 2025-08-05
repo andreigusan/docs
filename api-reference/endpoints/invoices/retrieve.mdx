@@ -229,12 +229,12 @@ description: 'Retrieve a specific invoice'
 <RequestExample>
 
 ```bash cURL
-curl https://app.contazen.ro/api/v1/invoices/inv_9z8y7x6w5v \
+curl https://api.contazen.ro/v1/invoices/inv_9z8y7x6w5v \
   -H "Authorization: Bearer sk_live_YOUR_API_KEY"
 ```
 
 ```javascript Node.js
-const response = await fetch('https://app.contazen.ro/api/v1/invoices/inv_9z8y7x6w5v', {
+const response = await fetch('https://api.contazen.ro/v1/invoices/inv_9z8y7x6w5v', {
   headers: {
     'Authorization': 'Bearer sk_live_YOUR_API_KEY'
   }
@@ -247,7 +247,7 @@ const data = await response.json();
 import requests
 
 response = requests.get(
-    'https://app.contazen.ro/api/v1/invoices/inv_9z8y7x6w5v',
+    'https://api.contazen.ro/v1/invoices/inv_9z8y7x6w5v',
     headers={'Authorization': 'Bearer sk_live_YOUR_API_KEY'}
 )
 
@@ -255,7 +255,7 @@ data = response.json()
 ```
 
 ```php PHP
-$ch = curl_init('https://app.contazen.ro/api/v1/invoices/inv_9z8y7x6w5v');
+$ch = curl_init('https://api.contazen.ro/v1/invoices/inv_9z8y7x6w5v');
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     'Authorization: Bearer sk_live_YOUR_API_KEY'
 ]);

@@ -117,7 +117,7 @@
     "linkedin": "https://www.linkedin.com/company/contazen"
   },
   "api": {
-    "baseUrl": "https://app.contazen.ro/api/v1",
+    "baseUrl": "https://api.contazen.ro/v1",
     "auth": {
       "method": "bearer"
     }

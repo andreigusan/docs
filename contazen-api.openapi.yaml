@@ -17,7 +17,7 @@ info:
     url: https://contazen.ro/terms
 
 servers:
-  - url: https://app.contazen.ro/api/v1
+  - url: https://api.contazen.ro/v1
     description: Production server
 
 security:
