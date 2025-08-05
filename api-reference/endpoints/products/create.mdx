@@ -1,0 +1,344 @@
+---
+title: 'Create Product'
+api: 'POST /api/v1/products'
+description: 'Create a new product or service'
+---
+
+## Request
+
+<ParamField body="name" type="string" required>
+  Product name
+</ParamField>
+
+<ParamField body="price" type="number" required>
+  Selling price (without VAT). Either `price` or `sell_price` must be provided.
+</ParamField>
+
+<ParamField body="sell_price" type="number">
+  Alias for `price`. Either `price` or `sell_price` must be provided.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Product description
+</ParamField>
+
+<ParamField body="currency" type="string" default="RON">
+  Currency code (e.g., "RON", "EUR", "USD")
+</ParamField>
+
+<ParamField body="vat_rate" type="number" default="21">
+  VAT rate percentage. Available rates: 21% (default), 19%, 11%, 9%, 5%, 0%
+</ParamField>
+
+<ParamField body="unit_of_measure" type="string" default="buc">
+  Unit of measure (e.g., "buc", "kg", "ora", "luna", "m2")
+</ParamField>
+
+<ParamField body="ubl_um" type="string" default="H87">
+  UBL unit of measure code for e-Factura compliance
+</ParamField>
+
+<ParamField body="ubl_nc" type="string">
+  Combined Nomenclature (NC) code for e-Factura
+</ParamField>
+
+<ParamField body="ubl_cpv" type="string">
+  Common Procurement Vocabulary (CPV) code for e-Factura
+</ParamField>
+
+<Note>
+  For e-Factura compliance, ensure you provide the correct UBL codes:
+  - `ubl_um`: Unit measure code (e.g., "H87" for piece, "KGM" for kilogram)
+  - `ubl_nc`: 8-digit Combined Nomenclature code for goods
+  - `ubl_cpv`: 8-digit CPV code for services
+</Note>
+
+## Response
+
+<ResponseField name="success" type="boolean">
+  Indicates if the request was successful
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  The created product object
+  
+  <Expandable title="Product Object">
+    <ResponseField name="id" type="string">
+      Unique product identifier (CzUid)
+    </ResponseField>
+    
+    <ResponseField name="object" type="string">
+      Always `product`
+    </ResponseField>
+    
+    <ResponseField name="name" type="string">
+      Product name
+    </ResponseField>
+    
+    <ResponseField name="description" type="string">
+      Product description
+    </ResponseField>
+    
+    <ResponseField name="currency" type="string">
+      Currency code
+    </ResponseField>
+    
+    <ResponseField name="price" type="number">
+      Selling price (without VAT)
+    </ResponseField>
+    
+    <ResponseField name="vat_rate" type="number">
+      VAT rate percentage
+    </ResponseField>
+    
+    <ResponseField name="unit_of_measure" type="string">
+      Unit of measure
+    </ResponseField>
+    
+    <ResponseField name="ubl_um" type="string">
+      UBL unit of measure code
+    </ResponseField>
+    
+    <ResponseField name="ubl_nc" type="string">
+      Combined Nomenclature code
+    </ResponseField>
+    
+    <ResponseField name="ubl_cpv" type="string">
+      CPV code
+    </ResponseField>
+    
+    <ResponseField name="created_at" type="integer">
+      Unix timestamp of creation
+    </ResponseField>
+    
+    <ResponseField name="modified_at" type="integer">
+      Unix timestamp of last update
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  Response metadata including version and response time
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://app.contazen.ro/api/v1/products \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Web Development Services",
+    "price": 250.00,
+    "vat_rate": 19,
+    "unit_of_measure": "ora",
+    "description": "Professional web development services",
+    "ubl_um": "HUR",
+    "ubl_cpv": "72413000"
+  }'
+```
+
+```javascript Node.js
+const response = await fetch('https://app.contazen.ro/api/v1/products', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer sk_live_YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    name: 'Laptop Dell XPS 15',
+    price: 5000.00,
+    vat_rate: 19,
+    unit_of_measure: 'buc',
+    description: 'High-performance laptop with 15.6" display',
+    currency: 'RON',
+    ubl_um: 'H87',
+    ubl_nc: '84713000'
+  })
+});
+
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'https://app.contazen.ro/api/v1/products',
+    json={
+        'name': 'Consultanță IT',
+        'price': 500.00,
+        'vat_rate': 19,
+        'unit_of_measure': 'ora',
+        'description': 'Servicii de consultanță în tehnologia informației',
+        'ubl_um': 'HUR',
+        'ubl_cpv': '72222000'
+    },
+    headers={'Authorization': 'Bearer sk_live_YOUR_API_KEY'}
+)
+
+data = response.json()
+```
+
+```php PHP
+$ch = curl_init('https://app.contazen.ro/api/v1/products');
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+    'name' => 'Licență Software',
+    'price' => 1200.00,
+    'vat_rate' => 19,
+    'unit_of_measure' => 'buc',
+    'description' => 'Licență software management proiecte',
+    'ubl_um' => 'H87',
+    'ubl_cpv' => '48000000'
+]));
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Authorization: Bearer sk_live_YOUR_API_KEY',
+    'Content-Type: application/json'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+$response = curl_exec($ch);
+$data = json_decode($response, true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Success Response
+{
+  "success": true,
+  "data": {
+    "id": "prod_7x8y9z0a1b",
+    "object": "product",
+    "name": "Web Development Services",
+    "description": "Professional web development services",
+    "currency": "RON",
+    "price": 250.00,
+    "vat_rate": 19,
+    "unit_of_measure": "ora",
+    "ubl_um": "HUR",
+    "ubl_nc": null,
+    "ubl_cpv": "72413000",
+    "created_at": 1710460800,
+    "modified_at": null
+  },
+  "meta": {
+    "version": "v1",
+    "response_time": "45.67ms"
+  }
+}
+```
+
+```json Error Response - Missing Required Field
+{
+  "success": false,
+  "error": {
+    "message": "Validation failed",
+    "type": "invalid_request_error",
+    "code": "validation_error",
+    "status": 400,
+    "errors": [
+      {
+        "field": "name",
+        "message": "Product name is required"
+      },
+      {
+        "field": "price",
+        "message": "Price is required"
+      }
+    ]
+  },
+  "meta": {
+    "version": "v1",
+    "response_time": "12.34ms"
+  }
+}
+```
+
+```json Error Response - Server Error
+{
+  "success": false,
+  "error": {
+    "message": "Failed to create product",
+    "type": "api_error",
+    "code": "database_error",
+    "status": 500
+  },
+  "meta": {
+    "version": "v1",
+    "response_time": "56.78ms"
+  }
+}
+```
+
+</ResponseExample>
+
+## Common Unit Codes
+
+### Romanian Units (UBL codes for e-Factura)
+
+| Unit | UBL Code | Description |
+|------|----------|-------------|
+| buc | H87 | Bucată (piece) |
+| kg | KGM | Kilogram |
+| ora | HUR | Oră (hour) |
+| luna | MON | Lună (month) |
+| m | MTR | Metru (meter) |
+| m2 | MTK | Metru pătrat (square meter) |
+| m3 | MTQ | Metru cub (cubic meter) |
+| l | LTR | Litru (liter) |
+| km | KMT | Kilometru (kilometer) |
+| zi | DAY | Zi (day) |
+
+## Product Types Examples
+
+### Physical Product
+```json
+{
+  "name": "Laptop Dell XPS 15",
+  "price": 5000.00,
+  "vat_rate": 19,
+  "unit_of_measure": "buc",
+  "ubl_um": "H87",
+  "ubl_nc": "84713000"
+}
+```
+
+### Service
+```json
+{
+  "name": "Consultancy Services",
+  "price": 500.00,
+  "vat_rate": 21,
+  "unit_of_measure": "ora",
+  "ubl_um": "HUR",
+  "ubl_cpv": "79411000"
+}
+```
+
+### Service with Reduced VAT (11%)
+```json
+{
+  "name": "Restaurant Services",
+  "price": 100.00,
+  "vat_rate": 11,
+  "unit_of_measure": "buc",
+  "ubl_um": "H87",
+  "ubl_cpv": "55300000",
+  "description": "Food service - reduced VAT rate 11%"
+}
+```
+
+### Digital Product
+```json
+{
+  "name": "Software License",
+  "price": 1200.00,
+  "vat_rate": 19,
+  "unit_of_measure": "buc",
+  "ubl_um": "H87",
+  "ubl_cpv": "48000000"
+}
+```

@@ -1,0 +1,79 @@
+---
+title: 'Versioning'
+description: 'API versioning approach'
+---
+
+## Current Version
+
+The Contazen API is currently at version **v1**, which is included in all API URLs:
+
+```
+https://app.contazen.ro/api/v1/...
+```
+
+## Version Header
+
+Every API response includes the version in the metadata:
+
+```json
+{
+  "success": true,
+  "data": { ... },
+  "meta": {
+    "version": "v1",
+    "response_time": "12.45ms"
+  }
+}
+```
+
+## Stability
+
+The v1 API is stable and production-ready. We are committed to maintaining backward compatibility for all v1 endpoints.
+
+## Backward Compatible Changes
+
+We may add the following without changing the API version:
+
+<CardGroup cols={2}>
+  <Card title="Additions" icon="plus">
+    - New endpoints
+    - New optional parameters
+    - New response fields
+    - Additional functionality
+  </Card>
+  <Card title="Extensions" icon="expand">
+    - Additional error codes
+    - Extended enum values
+    - New status types
+    - Enhanced features
+  </Card>
+</CardGroup>
+
+## Breaking Changes
+
+If we need to make breaking changes in the future, we will:
+
+1. Release a new API version (v2)
+2. Maintain v1 alongside the new version
+3. Provide clear migration documentation
+4. Give advance notice to all API users
+
+Examples of breaking changes include:
+- Removing endpoints or required parameters
+- Changing response structure
+- Modifying authentication methods
+- Altering core business logic
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Handle Unknown Fields" icon="code">
+    Your integration should gracefully handle new fields in API responses. Don't use strict parsing that fails when encountering unknown fields.
+  </Accordion>
+  <Accordion title="Check Response Status" icon="shield-check">
+    Always check the HTTP status code and the `success` field in responses. Don't assume requests succeeded.
+  </Accordion>
+  <Accordion title="Stay Informed" icon="bell">
+    Monitor your registered email for any API updates or announcements.
+  </Accordion>
+</AccordionGroup>

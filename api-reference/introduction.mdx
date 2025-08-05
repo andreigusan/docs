@@ -1,0 +1,161 @@
+---
+title: 'API Reference'
+description: 'Complete reference for all Contazen API endpoints'
+---
+
+## Overview
+
+The Contazen API provides programmatic access to all features of the Contazen invoicing platform. This reference documents every endpoint, parameter, and response.
+
+## Base URL
+
+All API endpoints are relative to:
+
+```
+https://app.contazen.ro/api/v1
+```
+
+## Available Resources
+
+<CardGroup cols={2}>
+  <Card title="Clients" icon="users">
+    Manage your customers and business partners
+    
+    - List, search, and filter clients
+    - Create B2B and B2C clients
+    - Update client information
+    - Track client history
+  </Card>
+  
+  <Card title="Invoices" icon="file-invoice">
+    Create and manage invoices
+    
+    - Generate fiscal documents
+    - Send invoices via email
+    - Track payment status
+    - E-Factura integration
+  </Card>
+  
+  <Card title="Products" icon="box">
+    Manage your product catalog
+    
+    - Create products and services
+    - Set pricing and VAT rates
+    - Organize by categories
+    - Track inventory
+  </Card>
+  
+  <Card title="Payments" icon="credit-card">
+    Process and track payments
+    
+    - Record payments
+    - Generate receipts
+    - Payment reconciliation
+    - Payment reminders
+  </Card>
+</CardGroup>
+
+## Request Format
+
+### Headers
+
+All requests must include:
+
+```http
+Authorization: Bearer YOUR_API_KEY
+Content-Type: application/json
+Accept: application/json
+```
+
+### Optional Headers
+
+```http
+Accept-Language: ro
+```
+
+## Response Format
+
+All responses follow this structure:
+
+### Success Response
+
+```json
+{
+  "success": true,
+  "data": {
+    // Response data
+  },
+  "meta": {
+    "version": "v1",
+    "response_time": "12.45ms"
+  }
+}
+```
+
+### Error Response
+
+```json
+{
+  "success": false,
+  "error": {
+    "message": "Human-readable error message",
+    "type": "error_type",
+    "code": "error_code",
+    "status": 400
+  },
+  "meta": {
+    "version": "v1",
+    "response_time": "12.5ms"
+  }
+}
+```
+
+## Common Parameters
+
+### Pagination
+
+Most list endpoints support pagination:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `page` | integer | 1 | Page number |
+| `per_page` | integer | 50 | Items per page (max: 100) |
+
+### Filtering
+
+List endpoints typically support:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `search` | string | Search term |
+| `sort` | string | Sort field |
+| `order` | string | Sort order (asc/desc) |
+| `start_date` | string | Filter by date range |
+| `end_date` | string | Filter by date range |
+
+### Expanding
+
+Some endpoints support expanding nested objects:
+
+```
+GET /api/v1/invoices/inv_123?expand[]=lines&expand[]=payments
+```
+
+## OpenAPI Specification
+
+Download our complete OpenAPI specification:
+
+<Card title="OpenAPI 3.0 Spec" icon="file-code" href="/contazen-api.openapi.yaml">
+  Machine-readable API specification for code generation and testing
+</Card>
+
+## Need Help?
+
+<CardGroup cols={2}>
+  <Card title="Examples" icon="code" href="/examples/introduction">
+    See practical examples for common use cases
+  </Card>
+  <Card title="Support" icon="headset" href="mailto:contact@contazen.ro">
+    Contact our support team for assistance
+  </Card>
+</CardGroup>

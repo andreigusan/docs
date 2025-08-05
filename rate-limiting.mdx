@@ -1,0 +1,101 @@
+---
+title: 'Rate Limiting'
+description: 'Understanding API rate limits and best practices'
+---
+
+## Overview
+
+API requests are rate limited to ensure stability and fair usage for all users.
+
+## Rate Limit
+
+<Card title="API Rate Limit" icon="gauge">
+  **100 requests per minute**
+  
+  All API keys are subject to this rate limit to ensure fair usage and stability.
+</Card>
+
+## Rate Limit Headers
+
+Every API response includes headers with rate limit information:
+
+| Header | Description |
+|--------|-------------|
+| `X-RateLimit-Limit` | The maximum number of requests allowed |
+| `X-RateLimit-Remaining` | The number of requests remaining |
+| `X-RateLimit-Reset` | The time when the rate limit resets (Unix timestamp) |
+
+## Handling Rate Limits
+
+When you exceed the rate limit, you'll receive a `429 Too Many Requests` response:
+
+```json
+{
+  "success": false,
+  "error": {
+    "message": "Rate limit exceeded",
+    "type": "rate_limit_error",
+    "code": "rate_limit_exceeded",
+    "retry_after": 45,
+    "status": 429
+  }
+}
+```
+
+The `retry_after` field indicates how many seconds to wait before retrying.
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Implement Exponential Backoff" icon="clock">
+    When rate limited, implement exponential backoff:
+    
+    ```javascript
+    async function makeRequestWithBackoff(url, options, maxRetries = 3) {
+      for (let i = 0; i < maxRetries; i++) {
+        const response = await fetch(url, options);
+        
+        if (response.status !== 429) {
+          return response;
+        }
+        
+        const retryAfter = response.headers.get('Retry-After') || Math.pow(2, i);
+        await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+      }
+      
+      throw new Error('Max retries exceeded');
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Cache Responses" icon="database">
+    Cache frequently accessed data to reduce API calls:
+    - Client lists that don't change often
+    - Product catalogs
+    - Static configuration data
+  </Accordion>
+  
+  <Accordion title="Batch Operations" icon="layer-group">
+    Where possible, use batch operations:
+    - Create multiple invoices in a single request
+    - Fetch data with appropriate pagination limits
+  </Accordion>
+  
+  <Accordion title="Monitor Usage" icon="chart-line">
+    Track your API usage:
+    - Log rate limit headers
+    - Set up alerts for high usage
+    - Plan for traffic spikes
+  </Accordion>
+</AccordionGroup>
+
+## Increasing Rate Limits
+
+If you need higher rate limits for your application:
+
+1. Contact support at contact@contazen.ro
+2. Provide details about your use case
+3. Include your current usage patterns
+4. Explain expected growth
+
+We'll work with you to ensure your application has the resources it needs.

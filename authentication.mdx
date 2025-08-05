@@ -1,0 +1,229 @@
+---
+title: 'Authentication'
+description: 'Secure your API requests with Bearer token authentication'
+---
+
+## Overview
+
+The Contazen API uses Bearer token authentication. All API requests must include a valid API key in the `Authorization` header.
+
+## API Keys
+
+### Key Type
+
+<Card title="Live Keys" icon="circle-check">
+  **Format**: `sk_live_` + 24 characters
+  
+  Use for production. All actions affect real data and can't be undone.
+</Card>
+
+### Creating API Keys
+
+<Steps>
+  <Step title="Access API Settings">
+    Log in to your Contazen account and navigate to [Settings → API Keys](https://app.contazen.ro/settings/api-keys)
+  </Step>
+  <Step title="Create New Key">
+    Click "Create New API Key" and configure:
+    - **Name**: Identify your key (e.g., "Production Server")
+    - **Permissions**: Select required scopes
+    - **IP Restrictions**: Optionally limit to specific IPs
+  </Step>
+  <Step title="Copy Your Key">
+    <Warning>
+      Your secret key will only be shown once. Store it securely in your environment variables.
+    </Warning>
+  </Step>
+</Steps>
+
+## Making Authenticated Requests
+
+Include your API key in the `Authorization` header:
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+<CodeGroup>
+
+```bash cURL
+curl https://app.contazen.ro/api/v1/clients \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+```javascript JavaScript
+const headers = {
+  'Authorization': 'Bearer sk_live_YOUR_API_KEY',
+  'Content-Type': 'application/json'
+};
+
+fetch('https://app.contazen.ro/api/v1/clients', { headers })
+  .then(response => response.json())
+  .then(data => console.log(data));
+```
+
+```python Python
+import requests
+
+headers = {
+    'Authorization': 'Bearer sk_live_YOUR_API_KEY',
+    'Content-Type': 'application/json'
+}
+
+response = requests.get(
+    'https://app.contazen.ro/api/v1/clients',
+    headers=headers
+)
+```
+
+```php PHP
+$headers = [
+    'Authorization: Bearer sk_live_YOUR_API_KEY',
+    'Content-Type: application/json'
+];
+
+$ch = curl_init('https://app.contazen.ro/api/v1/clients');
+curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+$response = curl_exec($ch);
+```
+
+</CodeGroup>
+
+## Security Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Environment Variables" icon="shield-keyhole">
+    Never hardcode API keys in your source code. Use environment variables instead:
+    
+    ```javascript
+    // Good
+    const apiKey = process.env.CONTAZEN_API_KEY;
+    
+    // Bad
+    const apiKey = 'sk_live_abc123...'; // Never do this!
+    ```
+  </Accordion>
+  
+  <Accordion title="Implement IP Restrictions" icon="location-crosshairs">
+    Limit API key usage to specific IP addresses:
+    
+    - Single IP: `192.168.1.1`
+    - CIDR range: `192.168.1.0/24`
+    - Multiple IPs: Add one per line
+  </Accordion>
+  
+  <Accordion title="Rotate Keys Regularly" icon="arrows-rotate">
+    Create a rotation schedule:
+    
+    1. Create new API key
+    2. Update your application
+    3. Monitor for issues
+    4. Revoke old key after confirming
+  </Accordion>
+  
+</AccordionGroup>
+
+## Authentication Errors
+
+When authentication fails, you'll receive a `401 Unauthorized` response:
+
+```json
+{
+  "success": false,
+  "error": {
+    "message": "Invalid API key",
+    "type": "authentication_error",
+    "code": "invalid_api_key",
+    "status": 401
+  },
+  "meta": {
+    "version": "v1",
+    "response_time": "2.3ms"
+  }
+}
+```
+
+### Common Error Codes
+
+| Code | Description | Solution |
+|------|-------------|----------|
+| `missing_api_key` | No Authorization header | Include the header |
+| `invalid_api_key` | Key doesn't exist | Check your key |
+| `expired_api_key` | Key has expired | Create a new key |
+| `ip_restricted` | Request from unauthorized IP | Update IP whitelist |
+| `insufficient_permissions` | Key lacks required scope | Update key permissions |
+
+## Testing Authentication
+
+Verify your setup with this simple test:
+
+<CodeGroup>
+
+```bash cURL
+# Test authentication
+curl -I https://app.contazen.ro/api/v1/clients \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# Success: HTTP 200
+# Failed: HTTP 401
+```
+
+```javascript Node.js
+// Test authentication
+async function testAuth() {
+  try {
+    const response = await fetch('https://app.contazen.ro/api/v1/clients', {
+      headers: {
+        'Authorization': `Bearer ${process.env.CONTAZEN_API_KEY}`
+      }
+    });
+    
+    if (response.ok) {
+      console.log('✅ Authentication successful');
+    } else {
+      console.log('❌ Authentication failed:', response.status);
+    }
+  } catch (error) {
+    console.error('Error:', error);
+  }
+}
+
+testAuth();
+```
+
+</CodeGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Headers Not Received" icon="triangle-exclamation">
+    Some servers strip the Authorization header. Add to `.htaccess`:
+    
+    ```apache
+    RewriteEngine On
+    RewriteCond %{HTTP:Authorization} ^(.*)
+    RewriteRule .* - [e=HTTP_AUTHORIZATION:%1]
+    ```
+  </Accordion>
+  
+  <Accordion title="CORS Issues" icon="globe">
+    For browser requests, the API includes CORS headers:
+    
+    ```
+    Access-Control-Allow-Origin: *
+    Access-Control-Allow-Headers: Authorization, Content-Type
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Need Help?
+
+If you're having authentication issues:
+
+1. Double-check your API key
+2. Verify you're using a valid API key
+3. Check rate limits
+4. Review IP restrictions
+5. Contact support with your request ID

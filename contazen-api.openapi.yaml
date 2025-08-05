@@ -1,0 +1,823 @@
+openapi: 3.0.3
+info:
+  title: Contazen API
+  description: |
+    Build powerful integrations with the Contazen invoicing platform. 
+    
+    The Contazen API is organized around REST, has predictable resource-oriented URLs, 
+    accepts form-encoded request bodies, returns JSON-encoded responses, and uses 
+    standard HTTP response codes, authentication, and verbs.
+  version: 1.0.0
+  contact:
+    name: Contazen Support
+    email: contact@contazen.ro
+    url: https://contazen.ro
+  license:
+    name: Proprietary
+    url: https://contazen.ro/terms
+
+servers:
+  - url: https://app.contazen.ro/api/v1
+    description: Production server
+
+security:
+  - bearerAuth: []
+
+paths:
+  /clients:
+    get:
+      tags:
+        - Clients
+      summary: List all clients
+      description: Retrieves a paginated list of clients for your firm
+      operationId: listClients
+      parameters:
+        - name: page
+          in: query
+          description: Page number
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: per_page
+          in: query
+          description: Items per page
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+        - name: search
+          in: query
+          description: Search term for name/email/cui
+          schema:
+            type: string
+        - name: sort
+          in: query
+          description: Sort field
+          schema:
+            type: string
+            enum: [name, created_at]
+        - name: order
+          in: query
+          description: Sort order
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+    post:
+      tags:
+        - Clients
+      summary: Create a client
+      description: Creates a new client
+      operationId: createClient
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateClientRequest'
+      responses:
+        '201':
+          description: Client created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /clients/{id}:
+    get:
+      tags:
+        - Clients
+      summary: Retrieve a client
+      description: Retrieves a specific client by ID
+      operationId: getClient
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Client ID
+          schema:
+            type: string
+            example: 1a2b3c4d5e
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    put:
+      tags:
+        - Clients
+      summary: Update a client
+      description: Updates an existing client
+      operationId: updateClient
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Client ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateClientRequest'
+      responses:
+        '200':
+          description: Client updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientResponse'
+
+    delete:
+      tags:
+        - Clients
+      summary: Delete a client
+      description: Deletes a client. Can only delete clients without associated invoices.
+      operationId: deleteClient
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Client ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Client deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResponse'
+        '400':
+          description: Cannot delete client with invoices
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /invoices:
+    get:
+      tags:
+        - Invoices
+      summary: List all invoices
+      description: Retrieves a paginated list of invoices
+      operationId: listInvoices
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: client_id
+          in: query
+          description: Filter by client CzUid
+          schema:
+            type: string
+        - name: document_type
+          in: query
+          schema:
+            type: string
+            enum: [fiscal, proforma, receipt]
+        - name: is_paid
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1]
+        - name: start_date
+          in: query
+          description: Start date (Y-m-d)
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          description: End date (Y-m-d)
+          schema:
+            type: string
+            format: date
+        - name: expand[]
+          in: query
+          description: Expand nested objects
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [lines, payments, client, efactura]
+          style: form
+          explode: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceListResponse'
+
+    post:
+      tags:
+        - Invoices
+      summary: Create an invoice
+      description: Creates a new invoice with optional inline client creation
+      operationId: createInvoice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInvoiceRequest'
+      responses:
+        '201':
+          description: Invoice created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /invoices/{id}:
+    get:
+      tags:
+        - Invoices
+      summary: Retrieve an invoice
+      description: Retrieves a specific invoice by ID
+      operationId: getInvoice
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: expand[]
+          in: query
+          description: Expand nested objects
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [lines, payments, client, efactura]
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceResponse'
+
+  /invoices/{id}/send:
+    post:
+      tags:
+        - Invoices
+      summary: Send an invoice
+      description: Sends an invoice by email
+      operationId: sendInvoice
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Override recipient email address
+      responses:
+        '200':
+          description: Invoice sent successfully
+
+  /invoices/{id}/pay:
+    post:
+      tags:
+        - Invoices
+      summary: Mark invoice as paid
+      description: Records a payment for an invoice
+      operationId: payInvoice
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+      responses:
+        '200':
+          description: Payment recorded successfully
+
+  /invoices/{id}/pdf:
+    get:
+      tags:
+        - Invoices
+      summary: Download invoice PDF
+      description: Downloads an invoice as PDF
+      operationId: downloadInvoicePdf
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: mode
+          in: query
+          schema:
+            type: string
+            enum: [download, url]
+            default: download
+      responses:
+        '200':
+          description: PDF file or download URL
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Use your API key as the bearer token
+
+  schemas:
+    Client:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 1a2b3c4d5e
+        object:
+          type: string
+          enum: [client]
+        name:
+          type: string
+          example: Acme Corp SRL
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        cui:
+          type: string
+          description: Tax ID (CUI/CIF)
+        rc:
+          type: string
+          description: Registration code
+        client_type:
+          type: string
+          enum: [b2b, b2c]
+        address:
+          type: string
+        city:
+          type: string
+        county:
+          type: string
+        country:
+          type: string
+        postal_code:
+          type: string
+        iban:
+          type: string
+        bank:
+          type: string
+        created_at:
+          type: integer
+          description: Unix timestamp
+
+    CreateClientRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        cui:
+          type: string
+        cui_prefix:
+          type: string
+          default: RO
+        rc:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        county:
+          type: string
+        country:
+          type: string
+          default: RO
+        postal_code:
+          type: string
+        iban:
+          type: string
+        bank:
+          type: string
+        contact_person:
+          type: string
+
+    UpdateClientRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        county:
+          type: string
+        postal_code:
+          type: string
+        iban:
+          type: string
+        bank:
+          type: string
+
+    Invoice:
+      type: object
+      properties:
+        id:
+          type: string
+          example: inv_1a2b3c4d5e
+        object:
+          type: string
+          enum: [invoice]
+        number:
+          type: string
+          example: CTZ-2024-00001
+        document_type:
+          type: string
+          enum: [fiscal, proforma, receipt]
+        date:
+          type: string
+          format: date
+        due_date:
+          type: string
+          format: date
+        client:
+          $ref: '#/components/schemas/Client'
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/InvoiceLine'
+        subtotal:
+          type: number
+          format: float
+        vat_amount:
+          type: number
+          format: float
+        total:
+          type: number
+          format: float
+        currency:
+          type: string
+          example: RON
+        status:
+          type: string
+          enum: [draft, sent, paid, cancelled]
+        observations:
+          type: string
+        created_at:
+          type: integer
+
+    InvoiceLine:
+      type: object
+      properties:
+        id:
+          type: string
+        description:
+          type: string
+        quantity:
+          type: number
+        price:
+          type: number
+        vat_rate:
+          type: number
+        unit:
+          type: string
+        subtotal:
+          type: number
+        vat_amount:
+          type: number
+        total:
+          type: number
+
+    CreateInvoiceRequest:
+      type: object
+      required:
+        - items
+      properties:
+        client_id:
+          type: string
+          description: Either client_id or client_data is required
+        client_data:
+          type: object
+          description: Create client inline
+          properties:
+            type:
+              type: string
+              enum: [b2b, b2c, business, individual, person]
+            name:
+              type: string
+            cui:
+              type: string
+            address:
+              type: string
+            city:
+              type: string
+            county:
+              type: string
+            email:
+              type: string
+            phone:
+              type: string
+        items:
+          type: array
+          items:
+            type: object
+            required:
+              - description
+              - quantity
+              - price
+            properties:
+              description:
+                type: string
+              quantity:
+                type: number
+              price:
+                type: number
+              vat_rate:
+                type: number
+                default: 19
+              unit:
+                type: string
+                default: buc
+              save_as_product:
+                type: boolean
+                default: false
+        document_type:
+          type: string
+          enum: [fiscal, proforma, receipt]
+          default: fiscal
+        date:
+          type: string
+          format: date
+        due_date:
+          type: string
+          format: date
+        currency:
+          type: string
+          default: RON
+        observations:
+          type: string
+        is_draft:
+          type: boolean
+          default: false
+        efactura_enabled:
+          type: boolean
+          default: true
+        send_email:
+          type: boolean
+          default: false
+        email_address:
+          type: string
+          format: email
+
+    PaymentRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          description: Payment amount (default full invoice amount)
+        payment_date:
+          type: string
+          format: date
+        payment_method:
+          type: string
+          enum: [receipt, bank_transfer, card, check, promissory_note, other, fiscal_receipt]
+        observations:
+          type: string
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+            type:
+              type: string
+            code:
+              type: string
+            status:
+              type: integer
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    ResponseMeta:
+      type: object
+      properties:
+        version:
+          type: string
+          example: v1
+        response_time:
+          type: string
+          example: 12.45ms
+
+    ClientResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Client'
+
+    ClientListResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                object:
+                  type: string
+                  enum: [list]
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Client'
+                has_more:
+                  type: boolean
+                total:
+                  type: integer
+                page:
+                  type: integer
+                per_page:
+                  type: integer
+                total_pages:
+                  type: integer
+
+    InvoiceResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Invoice'
+
+    InvoiceListResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                object:
+                  type: string
+                  enum: [list]
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Invoice'
+                has_more:
+                  type: boolean
+                total:
+                  type: integer
+                page:
+                  type: integer
+                per_page:
+                  type: integer
+                total_pages:
+                  type: integer
+
+    DeleteResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                deleted:
+                  type: boolean
+                  example: true
+                id:
+                  type: string
+
+  responses:
+    UnauthorizedError:
+      description: Authentication failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              message: Invalid API key
+              type: authentication_error
+              code: invalid_api_key
+              status: 401
+            meta:
+              version: v1
+              response_time: 2.3ms
+
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    RateLimitError:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+tags:
+  - name: Clients
+    description: Manage your customers
+  - name: Invoices
+    description: Create and manage invoices
+  - name: Products
+    description: Manage your product catalog

@@ -1,0 +1,198 @@
+---
+title: 'Pagination'
+description: 'Navigate through large datasets efficiently'
+---
+
+## Overview
+
+All list endpoints return paginated results to ensure optimal performance and manageable response sizes.
+
+## Request Parameters
+
+<ParamField query="page" type="integer" default="1">
+  The page number to retrieve. Pages are 1-indexed.
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="50">
+  Number of items per page. Maximum value is 100.
+</ParamField>
+
+## Response Format
+
+Paginated responses include metadata about the results:
+
+```json
+{
+  "success": true,
+  "data": {
+    "object": "list",
+    "data": [...], // Array of items
+    "has_more": true,
+    "total": 245,
+    "page": 1,
+    "per_page": 50,
+    "total_pages": 5
+  },
+  "meta": {
+    "version": "v1",
+    "response_time": "23.45ms"
+  }
+}
+```
+
+### Response Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `object` | string | Always "list" for paginated responses |
+| `data` | array | The requested items |
+| `has_more` | boolean | Whether more pages exist |
+| `total` | integer | Total number of items |
+| `page` | integer | Current page number |
+| `per_page` | integer | Items per page |
+| `total_pages` | integer | Total number of pages |
+
+## Examples
+
+### Basic Pagination
+
+Request the first page with default page size:
+
+```bash
+curl https://app.contazen.ro/api/v1/clients \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+### Custom Page Size
+
+Request 20 items per page:
+
+```bash
+curl "https://app.contazen.ro/api/v1/clients?per_page=20" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+### Navigate to Specific Page
+
+Get page 3 of results:
+
+```bash
+curl "https://app.contazen.ro/api/v1/clients?page=3&per_page=20" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Choose Appropriate Page Size" icon="ruler">
+    - Use smaller page sizes (10-20) for real-time UIs
+    - Use larger page sizes (50-100) for batch processing
+    - Consider network latency and processing time
+  </Accordion>
+  
+  <Accordion title="Handle Edge Cases" icon="shield-check">
+    - Check `has_more` before fetching next page
+    - Handle empty results gracefully
+    - Validate page numbers are within range
+  </Accordion>
+  
+  <Accordion title="Implement Cursor Pagination" icon="arrow-right">
+    For frequently changing data:
+    - Store the last item ID from each page
+    - Use filters to get items after that ID
+    - Prevents missing items due to insertions
+  </Accordion>
+</AccordionGroup>
+
+## Code Examples
+
+<CodeGroup>
+
+```javascript Node.js
+async function getAllClients(apiKey) {
+  const clients = [];
+  let page = 1;
+  let hasMore = true;
+  
+  while (hasMore) {
+    const response = await fetch(
+      `https://app.contazen.ro/api/v1/clients?page=${page}&per_page=100`,
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`
+        }
+      }
+    );
+    
+    const data = await response.json();
+    clients.push(...data.data.data);
+    
+    hasMore = data.data.has_more;
+    page++;
+  }
+  
+  return clients;
+}
+```
+
+```python Python
+def get_all_clients(api_key):
+    clients = []
+    page = 1
+    has_more = True
+    
+    while has_more:
+        response = requests.get(
+            f'https://app.contazen.ro/api/v1/clients',
+            params={'page': page, 'per_page': 100},
+            headers={'Authorization': f'Bearer {api_key}'}
+        )
+        
+        data = response.json()
+        clients.extend(data['data']['data'])
+        
+        has_more = data['data']['has_more']
+        page += 1
+    
+    return clients
+```
+
+```php PHP
+function getAllClients($apiKey) {
+    $clients = [];
+    $page = 1;
+    $hasMore = true;
+    
+    while ($hasMore) {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, 
+            "https://app.contazen.ro/api/v1/clients?page=$page&per_page=100"
+        );
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            "Authorization: Bearer $apiKey"
+        ]);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        
+        $response = curl_exec($ch);
+        $data = json_decode($response, true);
+        
+        $clients = array_merge($clients, $data['data']['data']);
+        
+        $hasMore = $data['data']['has_more'];
+        $page++;
+        
+        curl_close($ch);
+    }
+    
+    return $clients;
+}
+```
+
+</CodeGroup>
+
+## Performance Tips
+
+1. **Cache Results**: Store paginated results when data doesn't change frequently
+2. **Parallel Requests**: Fetch multiple pages simultaneously when order doesn't matter
+3. **Progressive Loading**: Load initial page quickly, fetch more as needed
+4. **Use Filters**: Combine pagination with filters to reduce dataset size

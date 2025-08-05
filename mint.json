@@ -1,0 +1,156 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Contazen API",
+  "logo": {
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg"
+  },
+  "favicon": "/favicon.svg",
+  "favicons": {
+    "shortcut": "/favicon.svg",
+    "apple": "/favicon.svg",
+    "android": "/favicon.svg",
+    "ms": "/favicon.svg"
+  },
+  "colors": {
+    "primary": "#0f9d59",
+    "light": "#07C983",
+    "dark": "#0f9d59",
+    "anchors": {
+      "from": "#0f9d59",
+      "to": "#07C983"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "Support",
+      "url": "mailto:contact@contazen.ro"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Dashboard",
+    "url": "https://app.contazen.ro"
+  },
+  "tabs": [
+    {
+      "name": "API Reference",
+      "url": "api-reference"
+    },
+    {
+      "name": "Examples",
+      "url": "examples"
+    }
+  ],
+  "anchors": [],
+  "navigation": [
+    {
+      "group": "API Reference",
+      "pages": [
+        "api-reference/introduction",
+        "api-reference/testing",
+        {
+          "group": "Clients",
+          "pages": [
+            "api-reference/endpoints/clients/list",
+            "api-reference/endpoints/clients/create",
+            "api-reference/endpoints/clients/retrieve",
+            "api-reference/endpoints/clients/update",
+            "api-reference/endpoints/clients/delete"
+          ]
+        },
+        {
+          "group": "Invoices",
+          "pages": [
+            "api-reference/endpoints/invoices/list",
+            "api-reference/endpoints/invoices/create",
+            "api-reference/endpoints/invoices/retrieve",
+            "api-reference/endpoints/invoices/send",
+            "api-reference/endpoints/invoices/pay",
+            "api-reference/endpoints/invoices/download-pdf"
+          ]
+        },
+        {
+          "group": "Products",
+          "pages": [
+            "api-reference/endpoints/products/list",
+            "api-reference/endpoints/products/create",
+            "api-reference/endpoints/products/retrieve",
+            "api-reference/endpoints/products/update",
+            "api-reference/endpoints/products/delete"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "Getting Started",
+      "pages": [
+        "introduction",
+        "quickstart",
+        "authentication",
+        "errors",
+        "rate-limiting",
+        "versioning"
+      ]
+    },
+    {
+      "group": "Core Concepts",
+      "pages": [
+        "concepts/pagination",
+        "concepts/expanding-objects",
+        "concepts/localization"
+      ]
+    },
+    {
+      "group": "Examples",
+      "pages": [
+        "examples/introduction",
+        "examples/client-management",
+        "examples/invoice-creation",
+        "examples/payment-processing",
+        "examples/e-factura-integration",
+        "examples/error-handling"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "x": "https://x.com/contazen",
+    "linkedin": "https://www.linkedin.com/company/contazen"
+  },
+  "api": {
+    "baseUrl": "https://app.contazen.ro/api/v1",
+    "auth": {
+      "method": "bearer"
+    }
+  },
+  "openapi": "/contazen-api.openapi.yaml",
+  "feedback": {
+    "thumbsRating": true,
+    "suggestEdit": true
+  },
+  "search": {
+    "prompt": "Search documentation..."
+  },
+  "metadata": {
+    "og:title": "Contazen API Documentation",
+    "og:description": "Build powerful integrations with the Contazen invoicing platform",
+    "og:image": "https://contazen.ro/og-image.png"
+  },
+  "modeToggle": {
+    "default": "light"
+  },
+  "topAnchor": {
+    "name": "API Docs",
+    "icon": "book"
+  },
+  "primaryTab": {
+    "name": "API Reference"
+  },
+  "versions": ["v1"],
+  "isWhiteLabeled": false,
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/api-reference/introduction"
+    }
+  ]
+}

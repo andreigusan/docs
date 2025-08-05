@@ -1,0 +1,528 @@
+---
+title: 'Error Handling'
+description: 'Understanding and handling API errors gracefully'
+---
+
+## Overview
+
+Contazen uses conventional HTTP response codes to indicate the success or failure of an API request.
+
+| Range | Meaning |
+|-------|---------|
+| `2xx` | Success - Request completed successfully |
+| `4xx` | Client Error - Invalid request parameters |
+| `5xx` | Server Error - Something went wrong on our end |
+
+## Error Response Format
+
+All error responses follow a consistent structure:
+
+```json
+{
+  "success": false,
+  "error": {
+    "message": "Human-readable error message",
+    "type": "error_type",
+    "code": "error_code",
+    "status": 400
+  },
+  "meta": {
+    "version": "v1",
+    "response_time": "12.5ms"
+  }
+}
+```
+
+## Error Types
+
+<AccordionGroup>
+  <Accordion title="Authentication Errors" icon="lock">
+    **Type**: `authentication_error`
+    
+    These errors occur when there's a problem with your API key.
+    
+    | Code | Status | Description |
+    |------|--------|-------------|
+    | `missing_api_key` | 401 | No Authorization header provided |
+    | `invalid_api_key` | 401 | API key doesn't exist or is invalid |
+    | `expired_api_key` | 401 | API key has expired |
+    | `ip_restricted` | 401 | Request from unauthorized IP |
+    | `insufficient_permissions` | 403 | API key lacks required permissions |
+    
+    **Example**:
+    ```json
+    {
+      "success": false,
+      "error": {
+        "message": "Invalid API key",
+        "type": "authentication_error",
+        "code": "invalid_api_key",
+        "status": 401
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Validation Errors" icon="triangle-exclamation">
+    **Type**: `validation_error`
+    
+    These errors occur when request parameters fail validation.
+    
+    | Code | Status | Description |
+    |------|--------|-------------|
+    | `invalid_request` | 400 | General validation failure |
+    | `missing_required_field` | 400 | Required field not provided |
+    | `invalid_field_value` | 400 | Field value doesn't meet requirements |
+    | `invalid_format` | 400 | Data format is incorrect |
+    
+    **Example with field-specific errors**:
+    ```json
+    {
+      "success": false,
+      "error": {
+        "message": "Validation failed",
+        "type": "validation_error",
+        "code": "invalid_request",
+        "status": 400,
+        "errors": {
+          "client_data.cui": "Invalid CUI format",
+          "items.0.price": "Price must be greater than 0",
+          "email": "Invalid email address"
+        }
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Rate Limit Errors" icon="gauge-high">
+    **Type**: `rate_limit_error`
+    
+    Returned when you exceed the allowed number of requests.
+    
+    | Code | Status | Description |
+    |------|--------|-------------|
+    | `rate_limit_exceeded` | 429 | Too many requests |
+    
+    **Example**:
+    ```json
+    {
+      "success": false,
+      "error": {
+        "message": "Rate limit exceeded",
+        "type": "rate_limit_error",
+        "code": "rate_limit_exceeded",
+        "retry_after": 45,
+        "status": 429
+      }
+    }
+    ```
+    
+    Check the response headers for rate limit information:
+    - `X-RateLimit-Limit`: Maximum requests allowed
+    - `X-RateLimit-Remaining`: Requests remaining
+    - `X-RateLimit-Reset`: Reset time (Unix timestamp)
+  </Accordion>
+
+  <Accordion title="Resource Errors" icon="magnifying-glass">
+    **Type**: `resource_error`
+    
+    These errors relate to specific resources.
+    
+    | Code | Status | Description |
+    |------|--------|-------------|
+    | `resource_not_found` | 404 | Requested resource doesn't exist |
+    | `resource_already_exists` | 409 | Resource with same identifier exists |
+    | `resource_locked` | 423 | Resource is locked for editing |
+    
+    **Example**:
+    ```json
+    {
+      "success": false,
+      "error": {
+        "message": "Client not found",
+        "type": "resource_error",
+        "code": "resource_not_found",
+        "status": 404
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Server Errors" icon="server">
+    **Type**: `api_error`
+    
+    These indicate problems on our servers.
+    
+    | Code | Status | Description |
+    |------|--------|-------------|
+    | `internal_server_error` | 500 | Unexpected server error |
+    | `service_unavailable` | 503 | Service temporarily unavailable |
+    
+    **Example**:
+    ```json
+    {
+      "success": false,
+      "error": {
+        "message": "An unexpected error occurred",
+        "type": "api_error",
+        "code": "internal_server_error",
+        "status": 500,
+        "request_id": "req_1a2b3c4d5e"
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Handling Errors
+
+### Best Practices
+
+<Steps>
+  <Step title="Always check the response status">
+    Don't assume a request succeeded. Check the HTTP status code and `success` field.
+  </Step>
+  
+  <Step title="Log error details">
+    Store the full error response, especially the `request_id` for debugging.
+  </Step>
+  
+  <Step title="Handle specific error types">
+    Implement different handling for different error types.
+  </Step>
+  
+  <Step title="Implement retry logic">
+    For 5xx errors and rate limits, implement exponential backoff.
+  </Step>
+</Steps>
+
+### Example Error Handling
+
+<CodeGroup>
+
+```javascript Node.js
+async function makeApiRequest(endpoint, options = {}) {
+  try {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers: {
+        'Authorization': `Bearer ${API_KEY}`,
+        'Content-Type': 'application/json',
+        ...options.headers
+      }
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      // Handle different error types
+      switch (data.error?.type) {
+        case 'authentication_error':
+          throw new AuthError(data.error.message);
+        
+        case 'validation_error':
+          throw new ValidationError(data.error.message, data.error.errors);
+        
+        case 'rate_limit_error':
+          const retryAfter = data.error.retry_after || 60;
+          throw new RateLimitError(data.error.message, retryAfter);
+        
+        default:
+          throw new ApiError(data.error.message, data.error.code);
+      }
+    }
+
+    return data;
+  } catch (error) {
+    // Handle network errors
+    if (error instanceof TypeError) {
+      throw new NetworkError('Network request failed');
+    }
+    throw error;
+  }
+}
+
+// Usage with retry logic
+async function createInvoiceWithRetry(invoiceData, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await makeApiRequest('/invoices', {
+        method: 'POST',
+        body: JSON.stringify(invoiceData)
+      });
+    } catch (error) {
+      if (error instanceof RateLimitError) {
+        // Wait and retry
+        await sleep(error.retryAfter * 1000);
+        continue;
+      }
+      
+      if (error instanceof ApiError && i < maxRetries - 1) {
+        // Exponential backoff for server errors
+        await sleep(Math.pow(2, i) * 1000);
+        continue;
+      }
+      
+      throw error;
+    }
+  }
+}
+```
+
+```python Python
+import time
+import requests
+from typing import Dict, Any
+
+class ContazenAPIError(Exception):
+    def __init__(self, message: str, error_type: str, code: str):
+        self.message = message
+        self.error_type = error_type
+        self.code = code
+        super().__init__(self.message)
+
+class ValidationError(ContazenAPIError):
+    def __init__(self, message: str, errors: Dict[str, str]):
+        super().__init__(message, 'validation_error', 'invalid_request')
+        self.errors = errors
+
+class RateLimitError(ContazenAPIError):
+    def __init__(self, message: str, retry_after: int):
+        super().__init__(message, 'rate_limit_error', 'rate_limit_exceeded')
+        self.retry_after = retry_after
+
+def make_api_request(endpoint: str, method: str = 'GET', data: Dict[str, Any] = None):
+    headers = {
+        'Authorization': f'Bearer {API_KEY}',
+        'Content-Type': 'application/json'
+    }
+    
+    response = requests.request(
+        method=method,
+        url=f"{API_BASE}{endpoint}",
+        headers=headers,
+        json=data
+    )
+    
+    response_data = response.json()
+    
+    if not response.ok:
+        error = response_data.get('error', {})
+        error_type = error.get('type')
+        
+        if error_type == 'validation_error':
+            raise ValidationError(
+                error.get('message'),
+                error.get('errors', {})
+            )
+        elif error_type == 'rate_limit_error':
+            raise RateLimitError(
+                error.get('message'),
+                error.get('retry_after', 60)
+            )
+        else:
+            raise ContazenAPIError(
+                error.get('message'),
+                error_type,
+                error.get('code')
+            )
+    
+    return response_data
+
+def create_invoice_with_retry(invoice_data: Dict[str, Any], max_retries: int = 3):
+    for attempt in range(max_retries):
+        try:
+            return make_api_request('/invoices', 'POST', invoice_data)
+        except RateLimitError as e:
+            if attempt < max_retries - 1:
+                time.sleep(e.retry_after)
+                continue
+            raise
+        except ContazenAPIError as e:
+            if e.error_type == 'api_error' and attempt < max_retries - 1:
+                # Exponential backoff
+                time.sleep(2 ** attempt)
+                continue
+            raise
+```
+
+```php PHP
+<?php
+
+class ContazenAPIException extends Exception {
+    public $errorType;
+    public $errorCode;
+    
+    public function __construct($message, $errorType, $errorCode, $statusCode) {
+        parent::__construct($message, $statusCode);
+        $this->errorType = $errorType;
+        $this->errorCode = $errorCode;
+    }
+}
+
+class ValidationException extends ContazenAPIException {
+    public $errors;
+    
+    public function __construct($message, $errors) {
+        parent::__construct($message, 'validation_error', 'invalid_request', 400);
+        $this->errors = $errors;
+    }
+}
+
+class RateLimitException extends ContazenAPIException {
+    public $retryAfter;
+    
+    public function __construct($message, $retryAfter) {
+        parent::__construct($message, 'rate_limit_error', 'rate_limit_exceeded', 429);
+        $this->retryAfter = $retryAfter;
+    }
+}
+
+function makeApiRequest($endpoint, $method = 'GET', $data = null) {
+    $ch = curl_init(API_BASE . $endpoint);
+    
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . API_KEY,
+        'Content-Type: application/json'
+    ]);
+    
+    if ($method !== 'GET') {
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+        if ($data) {
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        }
+    }
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    $responseData = json_decode($response, true);
+    
+    if ($httpCode >= 400) {
+        $error = $responseData['error'] ?? [];
+        $errorType = $error['type'] ?? 'unknown_error';
+        
+        switch ($errorType) {
+            case 'validation_error':
+                throw new ValidationException(
+                    $error['message'],
+                    $error['errors'] ?? []
+                );
+                
+            case 'rate_limit_error':
+                throw new RateLimitException(
+                    $error['message'],
+                    $error['retry_after'] ?? 60
+                );
+                
+            default:
+                throw new ContazenAPIException(
+                    $error['message'] ?? 'Unknown error',
+                    $errorType,
+                    $error['code'] ?? 'unknown',
+                    $httpCode
+                );
+        }
+    }
+    
+    return $responseData;
+}
+
+function createInvoiceWithRetry($invoiceData, $maxRetries = 3) {
+    for ($i = 0; $i < $maxRetries; $i++) {
+        try {
+            return makeApiRequest('/invoices', 'POST', $invoiceData);
+        } catch (RateLimitException $e) {
+            if ($i < $maxRetries - 1) {
+                sleep($e->retryAfter);
+                continue;
+            }
+            throw $e;
+        } catch (ContazenAPIException $e) {
+            if ($e->errorType === 'api_error' && $i < $maxRetries - 1) {
+                // Exponential backoff
+                sleep(pow(2, $i));
+                continue;
+            }
+            throw $e;
+        }
+    }
+}
+?>
+```
+
+</CodeGroup>
+
+## Common Error Scenarios
+
+<CardGroup cols={2}>
+  <Card title="Invalid CUI Format" icon="id-card">
+    ```json
+    {
+      "error": {
+        "message": "Validation failed",
+        "errors": {
+          "cui": "CUI must be RO followed by 2-10 digits"
+        }
+      }
+    }
+    ```
+    
+    **Solution**: Ensure CUI starts with "RO" for Romanian companies
+  </Card>
+
+  <Card title="Duplicate Invoice Number" icon="copy">
+    ```json
+    {
+      "error": {
+        "message": "Invoice number already exists",
+        "code": "duplicate_invoice_number"
+      }
+    }
+    ```
+    
+    **Solution**: Let the system auto-generate numbers
+  </Card>
+
+  <Card title="Missing Required Fields" icon="circle-exclamation">
+    ```json
+    {
+      "error": {
+        "message": "Validation failed",
+        "errors": {
+          "items": "At least one item is required",
+          "client_id": "Client is required"
+        }
+      }
+    }
+    ```
+    
+    **Solution**: Check all required fields are provided
+  </Card>
+
+  <Card title="Invalid Date Format" icon="calendar">
+    ```json
+    {
+      "error": {
+        "message": "Invalid date format",
+        "errors": {
+          "date": "Date must be in YYYY-MM-DD format"
+        }
+      }
+    }
+    ```
+    
+    **Solution**: Use ISO 8601 date format
+  </Card>
+</CardGroup>
+
+## Getting Help
+
+If you encounter an error you can't resolve:
+
+1. **Check the error message and code** - They provide specific information about what went wrong
+2. **Review the API documentation** - Ensure you're using the correct parameters
+3. **Include the request ID** - Found in error responses for server errors
+4. **Contact support** - Email contact@contazen.ro with details

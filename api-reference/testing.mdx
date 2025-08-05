@@ -1,0 +1,259 @@
+---
+title: 'Testing Your Integration'
+description: 'Best practices for testing the Contazen API without affecting production data'
+---
+
+## Overview
+
+The Contazen API does not have a dedicated sandbox environment. However, there are several strategies you can use to safely test your integration without affecting real business data.
+
+## Recommended Testing Strategies
+
+### 1. Create a Test Invoice Series
+
+The most effective approach is to create a dedicated invoice series for testing purposes.
+
+<Steps>
+  <Step title="Create Test Series">
+    Log into your Contazen account and navigate to **Settings → Invoice Series**
+    
+    Create a new series with a clear test identifier, for example:
+    - Series name: `TEST`
+    - Starting number: `1`
+    - Format: `TEST-{year}-{number}`
+  </Step>
+  
+  <Step title="Use Test Series in API">
+    When creating test invoices via API, specify your test series:
+    
+    ```json
+    {
+      "series_czuid": "YOUR_TEST_SERIES_CZUID",
+      "client_id": "test_client_czuid",
+      "items": [...]
+    }
+    ```
+  </Step>
+  
+  <Step title="Clean Up Test Data">
+    Periodically delete test invoices through the web interface:
+    - Filter invoices by your TEST series
+    - Bulk delete or void as needed
+  </Step>
+</Steps>
+
+### 2. Create Test Clients
+
+Create dedicated test clients to avoid mixing test data with real customers:
+
+```json
+{
+  "name": "TEST - Demo Company SRL",
+  "cui": "RO12345678",
+  "email": "test@example.com",
+  "address": "Test Address 123",
+  "city": "București, Sector 1"
+}
+```
+
+<Tip>
+  Prefix test client names with "TEST -" to easily identify and filter them later.
+</Tip>
+
+### 3. Use Draft Mode
+
+Always create test invoices as drafts first:
+
+```json
+{
+  "is_draft": true,
+  "client_id": "test_client_czuid",
+  "items": [...]
+}
+```
+
+Draft invoices:
+- Don't affect invoice numbering
+- Can be deleted without creating gaps
+- Won't be submitted to ANAF e-Factura
+- Can be easily identified and bulk deleted
+
+### 4. E-Factura Test Environment (SPV)
+
+For testing e-Factura integration, use the SPV test environment:
+
+```json
+{
+  "efactura_enabled": true,
+  "spv_environment": "test",
+  "client_id": "client_czuid",
+  "items": [...]
+}
+```
+
+<Warning>
+  E-Factura testing requires OAuth authentication to be completed. Configure it at:
+  **Settings → E-Factura → ANAF OAuth**
+</Warning>
+
+#### SPV Environment Options
+
+| Environment | Description | Use Case |
+|-------------|-------------|----------|
+| `live` | Production ANAF system (default) | Real invoices |
+| `test` | SPV test environment | Integration testing |
+
+<Note>
+  The SPV test environment allows you to test the full e-Factura flow without submitting real invoices to ANAF.
+</Note>
+
+## Testing Checklist
+
+Before going to production, test these scenarios:
+
+<Tabs>
+  <Tab title="Invoice Creation">
+    - ✅ Create draft invoices
+    - ✅ Create final invoices with test series
+    - ✅ Test with different VAT rates (21%, 19%, 11%, 9%, 5%, 0%)
+    - ✅ Test reverse charge (taxare inversă)
+    - ✅ Test multi-currency invoices
+    - ✅ Test with existing products
+    - ✅ Test creating new products
+  </Tab>
+  
+  <Tab title="Client Management">
+    - ✅ Create B2B clients (with CUI)
+    - ✅ Create B2C clients (individuals)
+    - ✅ Test CUI validation
+    - ✅ Test duplicate detection
+    - ✅ Test București sector validation
+    - ✅ Update client information
+    - ✅ List and filter clients
+  </Tab>
+  
+  <Tab title="E-Factura">
+    - ✅ Test with SPV environment first
+    - ✅ Verify OAuth is configured
+    - ✅ Test invoice submission
+    - ✅ Handle submission errors
+    - ✅ Check message retrieval
+    - ✅ Test with all required UBL codes
+  </Tab>
+  
+  <Tab title="Other Operations">
+    - ✅ Send invoices by email
+    - ✅ Download PDF (both modes)
+    - ✅ Record payments
+    - ✅ Void invoices
+    - ✅ Product CRUD operations
+    - ✅ Test pagination
+    - ✅ Test filtering and search
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+### 1. Separate Test Data
+
+- Use consistent prefixes: `TEST -` for clients, `TEST` for invoice series
+- Use a dedicated email for test notifications
+- Document your test CzUids for easy cleanup
+
+### 2. Rate Limiting
+
+The API allows 100 requests per minute. During testing:
+- Add delays between requests
+- Use pagination properly
+- Cache responses when possible
+
+### 3. Error Handling
+
+Test error scenarios:
+- Invalid API key
+- Missing required fields
+- Invalid CUI formats
+- Duplicate clients
+- Payment on paid invoices
+- Deleting used products
+
+### 4. Data Cleanup
+
+Create a cleanup script to remove test data:
+
+```javascript
+// Example: Delete all TEST series invoices
+const testInvoices = await getInvoices({ 
+  series: 'TEST',
+  per_page: 100 
+});
+
+for (const invoice of testInvoices) {
+  if (invoice.is_draft) {
+    await deleteInvoice(invoice.id);
+  } else {
+    await voidInvoice(invoice.id, 'Test cleanup');
+  }
+}
+```
+
+## OAuth Configuration for E-Factura
+
+<Warning>
+  E-Factura features require OAuth authentication with ANAF. Without proper OAuth configuration, e-Factura submissions will fail.
+</Warning>
+
+### Setup Steps
+
+1. Navigate to **Settings → E-Factura** in your Contazen account
+2. Click **Configure ANAF OAuth**
+3. Complete the OAuth flow with your ANAF credentials
+4. Verify the connection status shows "Connected"
+
+### Testing OAuth Integration
+
+```bash
+# Create an invoice with e-Factura enabled
+curl -X POST https://app.contazen.ro/api/v1/invoices \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_id": "client_czuid",
+    "efactura_enabled": true,
+    "spv_environment": "test",
+    "items": [{
+      "description": "Test Service",
+      "quantity": 1,
+      "price": 100,
+      "vat_rate": 21
+    }]
+  }'
+```
+
+If OAuth is not configured, you'll receive:
+
+```json
+{
+  "success": false,
+  "error": {
+    "message": "E-Factura OAuth not configured. Please complete OAuth setup at /firm/index/efactura",
+    "type": "configuration_error",
+    "code": "oauth_not_configured"
+  }
+}
+```
+
+## Production Readiness
+
+Before switching to production:
+
+1. ✅ Remove all test data
+2. ✅ Switch `spv_environment` to `"live"` (or omit it)
+3. ✅ Update API keys if using different ones
+4. ✅ Verify OAuth is connected for production
+5. ✅ Test with one real invoice first
+6. ✅ Monitor error logs closely
+
+<Note>
+  Remember: There's no way to "undo" a submitted e-Factura invoice in production. Always test thoroughly in SPV environment first.
+</Note>
