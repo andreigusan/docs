@@ -65,8 +65,12 @@
             "api-reference/endpoints/invoices/create",
             "api-reference/endpoints/invoices/retrieve",
             "api-reference/endpoints/invoices/send",
+            "api-reference/endpoints/invoices/send-to-spv",
             "api-reference/endpoints/invoices/pay",
-            "api-reference/endpoints/invoices/download-pdf"
+            "api-reference/endpoints/invoices/download-pdf",
+            "api-reference/endpoints/invoices/void",
+            "api-reference/endpoints/invoices/unvoid",
+            "api-reference/endpoints/invoices/delete"
           ]
         },
         {
@@ -93,6 +97,7 @@
         "introduction",
         "quickstart",
         "authentication",
+        "postman-collection",
         "errors",
         "rate-limiting",
         "versioning"
@@ -103,7 +108,8 @@
       "pages": [
         "concepts/pagination",
         "concepts/expanding-objects",
-        "concepts/localization"
+        "concepts/localization",
+        "concepts/invoice-lifecycle"
       ]
     },
     {

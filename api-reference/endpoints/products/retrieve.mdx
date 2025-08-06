@@ -1,13 +1,13 @@
 ---
 title: 'Retrieve Product'
-api: 'GET /api/v1/products/{id}'
+api: 'GET /products/{id}'
 description: 'Retrieve a specific product by ID'
 ---
 
 ## Request
 
 <ParamField path="id" type="string" required>
-  The product ID (CzUid) to retrieve
+  The product ID (ID) to retrieve
 </ParamField>
 
 ## Response
@@ -21,7 +21,7 @@ description: 'Retrieve a specific product by ID'
   
   <Expandable title="Product Object">
     <ResponseField name="id" type="string">
-      Unique product identifier (CzUid)
+      Unique product identifier (ID)
     </ResponseField>
     
     <ResponseField name="object" type="string">

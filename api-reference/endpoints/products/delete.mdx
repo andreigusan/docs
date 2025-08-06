@@ -1,13 +1,13 @@
 ---
 title: 'Delete Product'
-api: 'DELETE /api/v1/products/{id}'
+api: 'DELETE /products/{id}'
 description: 'Delete a product from your catalog'
 ---
 
 ## Request
 
 <ParamField path="id" type="string" required>
-  The product ID (CzUid) to delete
+  The product ID (ID) to delete
 </ParamField>
 
 <Warning>
@@ -23,7 +23,7 @@ description: 'Delete a product from your catalog'
 <ResponseField name="data" type="object">
   <Expandable title="Properties">
     <ResponseField name="id" type="string">
-      The deleted product's CzUid
+      The deleted product's ID
     </ResponseField>
     
     <ResponseField name="object" type="string">

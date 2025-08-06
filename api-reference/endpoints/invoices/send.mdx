@@ -1,13 +1,13 @@
 ---
 title: 'Send Invoice'
-api: 'POST /api/v1/invoices/{id}/send'
+api: 'POST /invoices/{id}/send'
 description: 'Send an invoice by email'
 ---
 
 ## Request
 
 <ParamField path="id" type="string" required>
-  The invoice ID (CzUid) to send
+  The invoice ID to send
 </ParamField>
 
 <ParamField body="email" type="string">

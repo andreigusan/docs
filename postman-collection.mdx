@@ -1,0 +1,228 @@
+---
+title: 'Postman Collection'
+description: 'Import our ready-to-use Postman collection for quick API testing'
+icon: 'rocket'
+---
+
+## Quick Start with Postman
+
+Get started with the Contazen API in seconds using our pre-configured Postman collection.
+
+<Card title="Download Postman Collection" icon="download" href="/Contazen_API.postman_collection.json">
+  Complete collection with all API endpoints and examples
+</Card>
+
+## What's Included
+
+Our Postman collection includes:
+
+- ✅ **All API endpoints** - Clients, Invoices, Products, and Settings
+- ✅ **Pre-configured examples** - Ready-to-use request bodies
+- ✅ **Environment variables** - Easy configuration for your API key
+- ✅ **Request descriptions** - Inline documentation for each endpoint
+- ✅ **Test examples** - Sample test scripts for common scenarios
+
+## Import Instructions
+
+<Steps>
+  <Step title="Download Postman">
+    If you haven't already, [download Postman](https://www.postman.com/downloads/) for your platform.
+  </Step>
+  
+  <Step title="Download Collection">
+    Click the download button above to get the latest collection file.
+  </Step>
+  
+  <Step title="Import in Postman">
+    1. Open Postman
+    2. Click **Import** in the top left
+    3. Select the downloaded `Contazen_API.postman_collection.json` file
+    4. Click **Import**
+  </Step>
+  
+  <Step title="Configure Environment">
+    Create a new environment with these variables:
+    
+    | Variable | Value |
+    |----------|-------|
+    | `base_url` | `https://api.contazen.ro/v1` |
+    | `api_key` | `sk_live_YOUR_API_KEY` |
+    
+    Replace `YOUR_API_KEY` with your actual API key from [Settings](https://app.contazen.ro/settings/api-keys).
+  </Step>
+  
+  <Step title="Make Your First Request">
+    1. Select the **Contazen API** environment
+    2. Navigate to **Clients → List Clients**
+    3. Click **Send**
+  </Step>
+</Steps>
+
+## Collection Structure
+
+```
+Contazen API v1.0
+├── 🔐 Authentication
+│   └── Test Authentication
+├── 👥 Clients
+│   ├── List Clients
+│   ├── Create Client
+│   ├── Retrieve Client
+│   ├── Update Client
+│   └── Delete Client
+├── 📄 Invoices
+│   ├── List Invoices
+│   ├── Create Invoice
+│   ├── Retrieve Invoice
+│   ├── Send Invoice
+│   ├── Send to SPV
+│   ├── Mark Invoice Paid
+│   ├── Download Invoice PDF
+│   ├── Void Invoice
+│   ├── Unvoid Invoice
+│   └── Delete Invoice
+├── 📦 Products
+│   ├── List Products
+│   ├── Create Product
+│   ├── Retrieve Product
+│   ├── Update Product
+│   └── Delete Product
+└── ⚙️ Settings
+    └── Get Settings
+```
+
+## Environment Variables
+
+Our collection uses environment variables for easy configuration:
+
+```javascript
+// Base URL
+{{base_url}} → https://api.contazen.ro/v1
+
+// Authentication
+{{api_key}} → Your API key
+
+// Optional test data
+{{test_client_id}} → ID of a test client
+{{test_invoice_id}} → ID of a test invoice
+{{test_product_id}} → ID of a test product
+```
+
+## Invoice Endpoints Explained
+
+### Core Invoice Operations
+- **List Invoices** - Retrieve all invoices with filtering and pagination
+- **Create Invoice** - Create new invoices with multiple examples for different scenarios
+- **Retrieve Invoice** - Get detailed information about a specific invoice
+
+### Email & Delivery
+- **Send Invoice** - Send invoice by email to the client
+- **Download Invoice PDF** - Get the invoice as a PDF file or URL
+
+### e-Factura Operations  
+- **Send to SPV** - Submit invoice to SPV test environment for e-Factura testing
+
+### Payment Management
+- **Mark Invoice Paid** - Record full or partial payments on invoices
+
+### Invoice Status Management
+- **Void Invoice** - Cancel an invoice following Romanian accounting rules
+- **Unvoid Invoice** - Restore a previously voided invoice
+- **Delete Invoice** - Permanently remove draft or voided invoices
+
+## Example Requests
+
+### Create Invoice with Items
+
+```json
+{
+  "client_id": "{{test_client_id}}",
+  "items": [
+    {
+      "description": "Web Development Services",
+      "quantity": 10,
+      "price": 100,
+      "vat_rate": 19
+    }
+  ],
+  "due_days": 30
+}
+```
+
+### Create B2B Client
+
+```json
+{
+  "name": "Acme Corp SRL",
+  "cui": "RO12345678",
+  "email": "contact@acmecorp.ro",
+  "address": "Str. Exemplu nr. 123",
+  "city": "București, Sectorul 1",
+  "county": "București"
+}
+```
+
+## Testing Features
+
+The collection includes pre-request scripts and tests:
+
+### Pre-request Scripts
+- Automatic timestamp generation
+- Dynamic data creation
+- Environment variable validation
+
+### Test Examples
+```javascript
+// Verify successful response
+pm.test("Status code is 200", function () {
+    pm.response.to.have.status(200);
+});
+
+// Save response data
+pm.test("Save client ID", function () {
+    var jsonData = pm.response.json();
+    pm.environment.set("test_client_id", jsonData.data.id);
+});
+```
+
+## Tips for Testing
+
+<AccordionGroup>
+  <Accordion title="Use Test Invoice Series">
+    Create a dedicated TEST series to keep test invoices separate from production data. See our [Testing Guide](/api-reference/testing) for details.
+  </Accordion>
+  
+  <Accordion title="Start with Draft Invoices">
+    When testing, use `"is_draft": true` to create draft invoices that can be easily deleted.
+  </Accordion>
+  
+  <Accordion title="Test with Romanian VAT Rates">
+    Use the correct VAT rates: 19% (standard), 9% (reduced), 5% (reduced), or 0% (exempt).
+  </Accordion>
+  
+  <Accordion title="Handle Rate Limits">
+    The API allows 100 requests per minute. The collection includes retry logic for rate-limited requests.
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<Warning>
+  **401 Unauthorized**: Check that your API key is correctly set in the environment variables and includes the `Bearer` prefix in the Authorization header.
+</Warning>
+
+<Note>
+  **SSL Certificate Errors**: If you encounter SSL errors during local testing, you can temporarily disable SSL verification in Postman settings (not recommended for production).
+</Note>
+
+## Updates
+
+We regularly update our Postman collection with new endpoints and improvements. Check back periodically for the latest version.
+
+Current version: **v1.0** (Last updated: August 2025)
+
+## Need Help?
+
+- Check our [API Reference](/api-reference) for detailed endpoint documentation
+- Review [common errors](/errors) and their solutions
+- Contact [support@contazen.ro](mailto:support@contazen.ro) for assistance

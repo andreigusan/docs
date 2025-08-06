@@ -1,28 +1,45 @@
 ---
 title: 'Retrieve Invoice'
-api: 'GET /api/v1/invoices/{id}'
+api: 'GET /invoices/{id}'
 description: 'Retrieve a specific invoice'
 ---
 
 ## Request
 
 <ParamField path="id" type="string" required>
-  The invoice ID (CzUid) to retrieve
-</ParamField>
-
-<ParamField query="expand[]" type="array">
-  Expand nested objects. See [Expanding Objects](/concepts/expanding-objects) for details.
-  
-  Available expansions:
-  - `lines` - Invoice line items (included by default)
-  - `payments` - Payment records (included by default)
-  - `client` - Client details
-  - `efactura` - E-Factura submission info
+  The invoice ID (ID) to retrieve
 </ParamField>
 
 <Note>
-  By default, retrieving a single invoice automatically expands the `lines` and `payments` objects for convenience.
+  **Default Expansions**: When retrieving a single invoice, the `lines` and `payments` objects are automatically expanded by default. You don't need to specify these in the expand parameter.
 </Note>
+
+<ParamField query="expand[]" type="array">
+  Expand additional nested objects. See [Expanding Objects](/concepts/expanding-objects) for details.
+  
+  Available expansions:
+  - `lines` - Invoice line items (**already included by default**)
+  - `payments` - Payment records (**already included by default**)
+  - `client` - Client details (optional)
+  - `efactura` - E-Factura submission info (optional)
+</ParamField>
+
+## Invoice Status
+
+Invoices can be in various states throughout their lifecycle. For a complete understanding of invoice states and transitions, see [Invoice Lifecycle](/concepts/invoice-lifecycle).
+
+### Quick Reference
+
+- **Normal invoices**: Regular active invoices
+- **Draft invoices**: Invoices not yet finalized (`is_draft: true`)
+- **Voided invoices**: Cancelled invoices that remain visible for audit purposes (`status: "voided"`)
+- **Deleted invoices**: Completely removed from the system (return 404 errors)
+
+<Warning>
+  **Voided vs Deleted**: 
+  - **Voided invoices** are marked as cancelled but remain accessible via API with `status: "voided"` for compliance and audit purposes
+  - **Deleted invoices** are completely removed from the database and will return a 404 error
+</Warning>
 
 ## Response
 
@@ -35,7 +52,7 @@ description: 'Retrieve a specific invoice'
   
   <Expandable title="Invoice Object">
     <ResponseField name="id" type="string">
-      Unique invoice identifier (CzUid)
+      Unique invoice identifier (ID)
     </ResponseField>
     
     <ResponseField name="object" type="string">
@@ -48,6 +65,17 @@ description: 'Retrieve a specific invoice'
     
     <ResponseField name="document_type" type="string">
       Document type: `fiscal`, `proforma`, or `receipt`
+    </ResponseField>
+    
+    <ResponseField name="status" type="string">
+      Invoice status
+      
+      Possible values:
+      - `draft` - Invoice not yet finalized
+      - `issued` - Invoice issued but not paid
+      - `paid` - Invoice fully paid
+      - `overdue` - Invoice past due date
+      - `voided` - Invoice cancelled/voided (still visible for audit)
     </ResponseField>
     
     <ResponseField name="date" type="string">
@@ -63,7 +91,7 @@ description: 'Retrieve a specific invoice'
       
       <Expandable title="Client Snapshot">
         <ResponseField name="id" type="string">
-          Client CzUid
+          Client ID
         </ResponseField>
         
         <ResponseField name="name" type="string">
@@ -197,7 +225,19 @@ description: 'Retrieve a specific invoice'
     </ResponseField>
     
     <ResponseField name="is_paid" type="boolean">
-      Payment status
+      Payment status - true if fully paid
+    </ResponseField>
+    
+    <ResponseField name="is_draft" type="boolean">
+      Draft status - true if invoice is not finalized
+    </ResponseField>
+    
+    <ResponseField name="is_voided" type="boolean">
+      Voided status - true if invoice has been cancelled/voided
+      
+      <Note>
+        Voided invoices remain accessible for audit purposes
+      </Note>
     </ResponseField>
     
     <ResponseField name="paid_amount" type="number">

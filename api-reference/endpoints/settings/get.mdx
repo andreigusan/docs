@@ -1,6 +1,6 @@
 ---
 title: 'Get Account Settings'
-api: 'GET /api/v1/settings'
+api: 'GET /settings'
 description: 'Retrieve comprehensive account settings and configuration'
 ---
 
@@ -89,11 +89,11 @@ This is a read-only endpoint that provides a complete view of your account confi
     </ResponseField>
     
     <ResponseField name="invoice_series" type="array">
-      List of configured invoice series
+      List of all configured invoice series
       
       <Expandable title="Series Object">
         <ResponseField name="id" type="string">
-          Series CzUid (use this for series_id parameter)
+          Series ID (use this for series_id parameter)
         </ResponseField>
         
         <ResponseField name="name" type="string">
@@ -118,6 +118,20 @@ This is a read-only endpoint that provides a complete view of your account confi
         
         <ResponseField name="is_active" type="boolean">
           Whether the series is active
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="primary_series" type="object">
+      Primary series for each document type (for quick access)
+      
+      <Expandable title="Primary Series">
+        <ResponseField name="fiscal" type="object">
+          Primary fiscal invoice series (same structure as Series Object above)
+        </ResponseField>
+        
+        <ResponseField name="proforma" type="object">
+          Primary proforma invoice series (same structure as Series Object above)
         </ResponseField>
       </Expandable>
     </ResponseField>
@@ -179,7 +193,7 @@ This is a read-only endpoint that provides a complete view of your account confi
       
       <Expandable title="Bank Account Object">
         <ResponseField name="id" type="string">
-          Account CzUid
+          Account ID
         </ResponseField>
         
         <ResponseField name="bank_name" type="string">
@@ -330,6 +344,26 @@ $settings = json_decode($response, true);
         "is_active": true
       }
     ],
+    "primary_series": {
+      "fiscal": {
+        "id": "yMzhgkh",
+        "name": "CTZ",
+        "document_type": "fiscal",
+        "format": "CTZ-{year}-{number}",
+        "next_number": 145,
+        "is_primary": true,
+        "is_active": true
+      },
+      "proforma": {
+        "id": "xKwpf9j",
+        "name": "PRO",
+        "document_type": "proforma",
+        "format": "PRO-{year}-{number}",
+        "next_number": 23,
+        "is_primary": true,
+        "is_active": true
+      }
+    },
     "efactura": {
       "enabled": true,
       "oauth_configured": true,

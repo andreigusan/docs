@@ -20,7 +20,7 @@ The most effective approach is to create a dedicated invoice series for testing 
     Create a new series with a clear test identifier, for example:
     - Series name: `TEST`
     - Starting number: `1`
-    - Format: `TEST-{year}-{number}`
+    - Format: `TEST-{number}`
   </Step>
   
   <Step title="Use Test Series in API">
@@ -29,16 +29,29 @@ The most effective approach is to create a dedicated invoice series for testing 
     ```json
     {
       "series_id": "YOUR_TEST_SERIES_ID",
-      "client_id": "test_client_czuid",
+      "client_id": "test_client_123",
       "items": [...]
     }
     ```
   </Step>
   
   <Step title="Clean Up Test Data">
-    Periodically delete test invoices through the web interface:
-    - Filter invoices by your TEST series
-    - Bulk delete or void as needed
+    To manage test invoices in Contazen:
+    
+    **Individual Deletion:**
+    - Navigate to the invoices list
+    - Filter by your TEST series
+    - Click on each invoice to open it
+    - Delete only if the invoice is:
+      - Still in draft status
+      - Already voided (has a storno)
+      - Is a storno invoice itself
+    
+    **Important Notes:**
+    - Contazen does not support bulk deletion of invoices
+    - Paid or partially paid invoices cannot be deleted
+    - For non-draft invoices, create a storno (void) instead
+    - Consider keeping test invoices in draft status for easy cleanup
   </Step>
 </Steps>
 
@@ -67,7 +80,7 @@ Always create test invoices as drafts first:
 ```json
 {
   "is_draft": true,
-  "client_id": "test_client_czuid",
+  "client_id": "test_client_123",
   "items": [...]
 }
 ```
@@ -86,7 +99,7 @@ For testing e-Factura integration, use the SPV test environment:
 {
   "efactura_enabled": true,
   "spv_environment": "test",
-  "client_id": "client_czuid",
+  "client_id": "client_123",
   "items": [...]
 }
 ```
@@ -158,7 +171,7 @@ Before going to production, test these scenarios:
 
 - Use consistent prefixes: `TEST -` for clients, `TEST` for invoice series
 - Use a dedicated email for test notifications
-- Document your test CzUids for easy cleanup
+- Document your test client and invoice IDs for easy cleanup
 
 ### 2. Rate Limiting
 
@@ -218,7 +231,7 @@ curl -X POST https://api.contazen.ro/v1/invoices \
   -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "client_id": "client_czuid",
+    "client_id": "client_123",
     "efactura_enabled": true,
     "spv_environment": "test",
     "items": [{

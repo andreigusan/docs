@@ -1,6 +1,6 @@
 ---
 title: 'List Invoices'
-api: 'GET /api/v1/invoices'
+api: 'GET /invoices'
 description: 'Retrieve a paginated list of invoices'
 ---
 
@@ -15,11 +15,11 @@ description: 'Retrieve a paginated list of invoices'
 </ParamField>
 
 <ParamField query="client_id" type="string">
-  Filter by client CzUid
+  Filter by client ID
 </ParamField>
 
 <ParamField query="series_id" type="string">
-  Filter by invoice series CzUid
+  Filter by invoice series ID
 </ParamField>
 
 <ParamField query="document_type" type="string">
@@ -34,11 +34,19 @@ description: 'Retrieve a paginated list of invoices'
   Filter by invoice status
   
   Options:
-  - `draft` - Draft invoices
-  - `sent` - Sent but unpaid invoices
-  - `paid` - Paid invoices
-  - `overdue` - Overdue unpaid invoices
-  - `cancelled` - Cancelled/voided invoices
+  - `draft` - Draft invoices only
+  - `issued` - Issued but unpaid invoices (excludes voided)
+  - `paid` - Paid invoices only (excludes voided)
+  - `overdue` - Overdue unpaid invoices (excludes voided)
+  - `voided` - Voided/cancelled invoices only
+  
+  <Note>
+    **Default behavior**: When no status filter is specified, all invoices are returned including voided ones. Voided invoices will have `status: "voided"` in the response.
+  </Note>
+  
+  <Warning>
+    **Deleted invoices** are completely removed from the database and never appear in any list results.
+  </Warning>
 </ParamField>
 
 <ParamField query="currency" type="string">
@@ -103,7 +111,7 @@ description: 'Retrieve a paginated list of invoices'
       
       <Expandable title="Invoice Object">
         <ResponseField name="id" type="string">
-          Unique invoice identifier (CzUid)
+          Unique invoice identifier (ID)
         </ResponseField>
         
         <ResponseField name="object" type="string">
@@ -127,7 +135,7 @@ description: 'Retrieve a paginated list of invoices'
         </ResponseField>
         
         <ResponseField name="client_id" type="string">
-          Client CzUid (unless expanded)
+          Client ID (unless expanded)
         </ResponseField>
         
         <ResponseField name="client" type="object">

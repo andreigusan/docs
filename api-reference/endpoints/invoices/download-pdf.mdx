@@ -1,13 +1,13 @@
 ---
 title: 'Download Invoice PDF'
-api: 'GET /api/v1/invoices/{id}/pdf'
+api: 'GET /invoices/{id}/pdf'
 description: 'Download an invoice as PDF'
 ---
 
 ## Request
 
 <ParamField path="id" type="string" required>
-  The invoice ID (CzUid) to download
+  The invoice ID (ID) to download
 </ParamField>
 
 <ParamField query="mode" type="string" default="download">
@@ -32,7 +32,7 @@ When `mode=download` or not specified, the response is the PDF file itself:
 
 - **Content-Type**: `application/pdf`
 - **Content-Disposition**: `attachment; filename="invoice_number.pdf"`
-- **X-Invoice-ID**: The invoice CzUid in the response header
+- **X-Invoice-ID**: The invoice ID in the response header
 
 ### URL Mode
 
@@ -45,7 +45,7 @@ When `mode=url`, the response is a JSON object containing a temporary download U
 <ResponseField name="data" type="object">
   <Expandable title="Properties">
     <ResponseField name="id" type="string">
-      The invoice CzUid
+      The invoice ID
     </ResponseField>
     
     <ResponseField name="object" type="string">

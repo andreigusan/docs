@@ -1,6 +1,6 @@
 ---
 title: 'Create Invoice'
-api: 'POST /api/v1/invoices'
+api: 'POST /invoices'
 description: 'Create a new invoice with optional client creation'
 ---
 
@@ -61,7 +61,7 @@ description: 'Create a new invoice with optional client creation'
 </ParamField>
 
 <ParamField body="series_id" type="string">
-  Invoice series CzUid. If not specified, the default series for the document type will be used.
+  Invoice series ID. If not specified, the default series for the document type will be used.
 </ParamField>
 
 <ParamField body="items" type="array" required>
@@ -161,7 +161,7 @@ description: 'Create a new invoice with optional client creation'
     </ResponseField>
     
     <ResponseField name="series_id" type="string">
-      Invoice series CzUid
+      Invoice series ID
     </ResponseField>
     
     <ResponseField name="document_type" type="string">

@@ -1,13 +1,13 @@
 ---
 title: 'Mark Invoice Paid'
-api: 'POST /api/v1/invoices/{id}/pay'
+api: 'POST /invoices/{id}/pay'
 description: 'Record a payment for an invoice'
 ---
 
 ## Request
 
 <ParamField path="id" type="string" required>
-  The invoice ID (CzUid) to mark as paid
+  The invoice ID (ID) to mark as paid
 </ParamField>
 
 <ParamField body="amount" type="number">
@@ -50,7 +50,7 @@ description: 'Record a payment for an invoice'
     </ResponseField>
     
     <ResponseField name="invoice_id" type="string">
-      The invoice CzUid
+      The invoice ID
     </ResponseField>
     
     <ResponseField name="amount" type="number">

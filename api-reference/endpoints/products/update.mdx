@@ -1,13 +1,13 @@
 ---
 title: 'Update Product'
-api: 'PUT /api/v1/products/{id}'
+api: 'PUT /products/{id}'
 description: 'Update an existing product'
 ---
 
 ## Request
 
 <ParamField path="id" type="string" required>
-  The product ID (CzUid) to update
+  The product ID (ID) to update
 </ParamField>
 
 <Note>
@@ -65,7 +65,7 @@ description: 'Update an existing product'
   
   <Expandable title="Product Object">
     <ResponseField name="id" type="string">
-      Unique product identifier (CzUid)
+      Unique product identifier (ID)
     </ResponseField>
     
     <ResponseField name="object" type="string">
