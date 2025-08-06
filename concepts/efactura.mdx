@@ -1,25 +1,25 @@
 ---
-title: 'E-Factura Integration'
+title: 'e-Factura Integration'
 description: 'Complete guide to integrating with the Romanian e-Factura (SPV) system'
 ---
 
 ## Overview
 
-E-Factura is Romania's electronic invoicing system managed by ANAF (National Agency for Fiscal Administration). All B2B transactions above certain thresholds must be reported to the SPV (Sistema Privata de Verificare) platform.
+e-Factura is Romania's electronic invoicing system managed by ANAF (National Agency for Fiscal Administration). All invoices (both B2B and B2C) must be reported to the SPV (Spațiul Privat Virtual) platform.
 
-Contazen provides seamless integration with the e-Factura system, handling the complex OAuth2 authentication, XML generation, and submission processes automatically.
+Contazen provides seamless integration with the e-Factura system, handling the OAuth2 authentication, XML generation, and submission processes automatically.
 
 ## Prerequisites
 
 Before using e-Factura features through the API, ensure your account is properly configured:
 
-1. **ANAF OAuth2 Setup**: Complete the OAuth2 authorization flow in your Contazen dashboard
+1. **ANAF OAuth2 Setup**: Complete the OAuth2 authorization flow in your [Contazen dashboard](https://app.contazen.ro/firm/index/efactura)
 2. **Environment Selection**: Choose between `test` (sandbox) or `live` (production) mode
 3. **Proper Firm Registration**: Ensure your firm details (CUI, address, etc.) are accurate
 
 ## Setup Process
 
-### 1. Check E-Factura Status
+### 1. Check e-Factura Status
 
 First, verify your e-Factura configuration using the Settings endpoint:
 
@@ -39,7 +39,7 @@ const response = await fetch('https://api.contazen.ro/v1/settings', {
 });
 
 const settings = await response.json();
-console.log('E-Factura Status:', settings.data.efactura);
+console.log('e-Factura Status:', settings.data.efactura);
 ```
 
 ```python Python
@@ -51,7 +51,7 @@ response = requests.get(
 )
 
 settings = response.json()
-print('E-Factura Status:', settings['data']['efactura'])
+print('e-Factura Status:', settings['data']['efactura'])
 ```
 
 ```php PHP
@@ -63,12 +63,12 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, [
 
 $response = curl_exec($ch);
 $settings = json_decode($response, true);
-echo 'E-Factura Status: ' . json_encode($settings['data']['efactura']);
+echo 'e-Factura Status: ' . json_encode($settings['data']['efactura']);
 ```
 
 </CodeGroup>
 
-### 2. E-Factura Settings Response
+### 2. e-Factura Settings Response
 
 The settings response includes comprehensive e-Factura status information:
 
@@ -98,23 +98,55 @@ The settings response includes comprehensive e-Factura status information:
 
 If `oauth_configured` is `false`, you'll need to complete the OAuth setup in the Contazen dashboard before using the API endpoints.
 
-## Creating E-Factura Compatible Invoices
+## Creating e-Factura Compatible Invoices
 
 ### Invoice Requirements
 
 For invoices to be eligible for e-Factura submission:
 
-1. **Document Type**: Must be `fiscal` (not `proforma` or `receipt`)
-2. **Client Type**: Must be B2B with valid Romanian CUI
+1. **Document Type**: Must be `fiscal`
+2. **Client Type**: B2B with valid Romanian CUI or B2C (CNP is optional, use `-` if not available)
 3. **Complete Data**: All required fields must be present
 4. **Status**: Invoice must be finalized (not draft)
+5. **UBL Compliance**: Items should include proper UBL unit codes
+
+### UBL Unit Codes for e-Factura
+
+The Romanian e-Factura system requires UBL (Universal Business Language) unit codes for proper classification. Contazen automatically handles this with intelligent defaults and mappings.
+
+#### Default Behavior
+- **Default Unit**: If no `ubl_um` is specified, defaults to **H87** (bucată/piece)
+- **Auto-mapping**: System maps common Romanian units to UBL codes automatically
+- **Validation**: Invalid codes generate warnings but don't block invoice creation
+- **e-Factura Status**: `efactura_enabled` defaults to `true` for fiscal invoices
+
+#### Common UBL Unit Codes
+
+<Note>
+UBL codes are case-insensitive. Both `H87` and `h87` work correctly.
+</Note>
+
+| Code | Description | Romanian | Best Used For |
+|------|-------------|----------|---------------|
+| **H87** | Piece/Item | bucată | Physical products, default |
+| **HUR** | Hour | oră | Time-based services |
+| **DAY** | Day | zi | Daily rates, rentals |
+| **MON** | Month | lună | Monthly subscriptions |
+| **ANN** | Year | an | Annual licenses |
+| **KGM** | Kilogram | kilogram | Weight-based products |
+| **MTR** | Meter | metru | Length measurements |
+| **LTR** | Liter | litru | Liquids, chemicals |
+| **KMT** | Kilometer | kilometru | Transport, delivery |
 
 ### Example Invoice Creation
+
+#### Basic Invoice with UBL Units
 
 <CodeGroup>
 
 ```javascript Node.js
-const invoiceData = {
+// B2B Invoice Example
+const b2bInvoiceData = {
   client_data: {
     type: "b2b",
     name: "Example SRL",
@@ -130,7 +162,8 @@ const invoiceData = {
       quantity: 10,
       price: 150.00,
       vat_rate: 19,
-      unit: "ore"
+      unit: "ore",
+      ubl_um: "HUR"  // UBL code for hours
     }
   ],
   document_type: "fiscal",
@@ -144,17 +177,43 @@ const response = await fetch('https://api.contazen.ro/v1/invoices', {
     'Authorization': 'Bearer your_api_key_here',
     'Content-Type': 'application/json'
   },
-  body: JSON.stringify(invoiceData)
+  body: JSON.stringify(b2bInvoiceData)
 });
 
 const invoice = await response.json();
 console.log('Invoice created:', invoice.data.id);
+
+// B2C Invoice Example
+const b2cInvoiceData = {
+  client_data: {
+    type: "b2c",
+    name: "Ion Popescu",
+    cnp: "1234567890123", // Optional - use "-" if not available
+    address: "Str. Exemplu Nr. 1",
+    city: "București",
+    county: "București",
+    email: "ion.popescu@example.com"
+  },
+  items: [
+    {
+      description: "Produs electronic",
+      quantity: 1,
+      price: 500.00,
+      vat_rate: 19,
+      unit: "buc",
+      ubl_um: "H87"
+    }
+  ],
+  document_type: "fiscal",
+  efactura_enabled: true
+};
 ```
 
 ```python Python
 import requests
 
-invoice_data = {
+# B2B Invoice Example
+b2b_invoice_data = {
     "client_data": {
         "type": "b2b",
         "name": "Example SRL",
@@ -181,14 +240,198 @@ invoice_data = {
 response = requests.post(
     'https://api.contazen.ro/v1/invoices',
     headers={'Authorization': 'Bearer your_api_key_here'},
-    json=invoice_data
+    json=b2b_invoice_data
 )
 
 invoice = response.json()
 print('Invoice created:', invoice['data']['id'])
+
+# B2C Invoice Example
+b2c_invoice_data = {
+    "client_data": {
+        "type": "b2c",
+        "name": "Ion Popescu",
+        "cnp": "1234567890123",  # Optional - use "-" if not available
+        "address": "Str. Exemplu Nr. 1",
+        "city": "București",
+        "county": "București",
+        "email": "ion.popescu@example.com"
+    },
+    "items": [
+        {
+            "description": "Produs electronic",
+            "quantity": 1,
+            "price": 500.00,
+            "vat_rate": 19,
+            "unit": "buc",
+            "ubl_um": "H87"
+        }
+    ],
+    "document_type": "fiscal",
+    "efactura_enabled": True
+}
 ```
 
 </CodeGroup>
+
+#### Advanced e-Factura Compliance
+
+For full e-Factura compliance, include additional UBL classification codes:
+
+<CodeGroup>
+
+```javascript Node.js
+const advancedInvoiceData = {
+  client_data: {
+    type: "b2b",
+    name: "Tech Solutions SRL",
+    cui: "RO98765432",
+    address: "Bd. Magheru Nr. 15",
+    city: "București",
+    county: "București"
+  },
+  items: [
+    {
+      description: "Laptop DELL XPS 15",
+      quantity: 2,
+      price: 5000.00,
+      vat_rate: 19,
+      unit: "bucăți",
+      ubl_um: "H87",              // UBL unit: piece
+      ubl_nc: "84713000",         // Combined Nomenclature code
+      ubl_cpv: "30213100-6",      // Common Procurement Vocabulary
+      vat_key: "S"                // Standard VAT rate classification
+    },
+    {
+      description: "Installation and setup service",
+      quantity: 8,
+      price: 200.00,
+      vat_rate: 19,
+      unit: "ore",
+      ubl_um: "HUR",              // UBL unit: hour
+      ubl_cpv: "72253000-3"       // CPV for computer support services
+    }
+  ],
+  document_type: "fiscal",
+  efactura_enabled: true
+};
+
+const response = await fetch('https://api.contazen.ro/v1/invoices', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer your_api_key_here',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify(advancedInvoiceData)
+});
+```
+
+```python Python
+advanced_invoice_data = {
+    "client_data": {
+        "type": "b2b",
+        "name": "Tech Solutions SRL",
+        "cui": "RO98765432",
+        "address": "Bd. Magheru Nr. 15",
+        "city": "București",
+        "county": "București"
+    },
+    "items": [
+        {
+            "description": "Laptop DELL XPS 15",
+            "quantity": 2,
+            "price": 5000.00,
+            "vat_rate": 19,
+            "unit": "bucăți",
+            "ubl_um": "H87",        # UBL unit: piece
+            "ubl_nc": "84713000",   # Combined Nomenclature code
+            "ubl_cpv": "30213100-6", # Common Procurement Vocabulary
+            "vat_key": "S"          # Standard VAT rate
+        },
+        {
+            "description": "Installation and setup service",
+            "quantity": 8,
+            "price": 200.00,
+            "vat_rate": 19,
+            "unit": "ore",
+            "ubl_um": "HUR",        # UBL unit: hour
+            "ubl_cpv": "72253000-3" # CPV for computer support
+        }
+    ],
+    "document_type": "fiscal",
+    "efactura_enabled": True
+}
+```
+
+</CodeGroup>
+
+### UBL Field Reference
+
+When creating invoice items for e-Factura, you can include these UBL-related fields:
+
+| Field | Type | Required | Description | Example |
+|-------|------|----------|-------------|---------|
+| `unit` | string | No | Human-readable unit name | `"ore"`, `"bucăți"`, `"kg"` |
+| `ubl_um` | string | No | UBL unit code for e-Factura | `"HUR"`, `"H87"`, `"KGM"` |
+| `ubl_nc` | string | No | Combined Nomenclature code | `"84713000"` |
+| `ubl_cpv` | string | No | Common Procurement Vocabulary | `"30213100-6"` |
+| `vat_key` | string | No | VAT classification key | `"S"`, `"E"`, `"O"` |
+
+<Note>
+**Auto-mapping**: If you only provide `unit` (e.g., "ore"), Contazen automatically maps it to the correct UBL code (`HUR`). The system includes pre-configured mappings for common Romanian units.
+</Note>
+
+### UBL Validation Rules
+
+<AccordionGroup>
+  <Accordion title="Code Validation" icon="check-circle">
+    - UBL codes are **case-insensitive** (`HUR`, `hur`, `Hur` all work)
+    - Invalid codes generate warnings but **don't block** invoice creation
+    - System defaults to `H87` if invalid code is provided
+    - All validation happens server-side automatically
+  </Accordion>
+  
+  <Accordion title="Automatic Mapping" icon="arrows-turn-right">
+    - System checks your firm's custom unit mappings first
+    - Falls back to built-in mappings for common units:
+      - `"ore"` → `"HUR"`
+      - `"bucăți"`, `"buc"` → `"H87"`
+      - `"kg"`, `"kilogram"` → `"KGM"`
+      - `"metru"`, `"m"` → `"MTR"`
+    - Custom mappings can be configured in your dashboard
+  </Accordion>
+  
+  <Accordion title="e-Factura Requirements" icon="file-certificate">
+    - Every invoice item **must have** a UBL unit code for e-Factura
+    - System ensures compliance by providing defaults
+    - Discounts automatically use `H87` (piece)
+    - All codes are validated against UBL standards
+  </Accordion>
+</AccordionGroup>
+
+### UBL Resources and References
+
+<CardGroup cols={2}>
+  <Card title="Official UBL Unit Codes" icon="list" href="https://docs.peppol.eu/poacc/billing/3.0/codelist/UNECERec20/">
+    Complete list of UBL unit codes from PEPPOL documentation
+  </Card>
+  
+  <Card title="Combined Nomenclature (CN)" icon="barcode" href="https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp">
+    EU database for product classification codes
+  </Card>
+  
+  <Card title="Common Procurement Vocabulary" icon="building" href="https://simap.ted.europa.eu/cpv">
+    CPV codes for public procurement classification
+  </Card>
+  
+  <Card title="ANAF e-Factura Docs" icon="file-text" href="https://www.anaf.ro/anaf/internet/ANAF/despre_anaf/strategii_anaf/proiecte_digitalizare/e.factura">
+    Official Romanian e-Factura documentation
+  </Card>
+</CardGroup>
+
+<Tip>
+**Quick Start**: For most use cases, you only need `ubl_um`. The system will handle the rest automatically. Use `HUR` for time-based services and `H87` for physical products.
+</Tip>
 
 ## Sending Invoices to SPV
 
@@ -273,7 +516,7 @@ curl -X GET "https://api.contazen.ro/v1/invoices/inv_1a2b3c4d5e?expand[]=efactur
   -H "Authorization: Bearer your_api_key_here"
 ```
 
-### Response with E-Factura Status
+### Response with e-Factura Status
 
 ```json
 {
@@ -296,7 +539,7 @@ curl -X GET "https://api.contazen.ro/v1/invoices/inv_1a2b3c4d5e?expand[]=efactur
 }
 ```
 
-## Voiding E-Factura Invoices
+## Voiding e-Factura Invoices
 
 ### Standard Void Process
 
@@ -355,7 +598,7 @@ console.log('Invoice voided:', result.success);
 
 ## Error Handling
 
-### Common E-Factura Errors
+### Common e-Factura Errors
 
 <CardGroup cols={2}>
   <Card title="OAuth Not Configured" icon="key">
@@ -389,7 +632,7 @@ console.log('Invoice voided:', result.success);
 {
   "success": false,
   "error": {
-    "message": "E-Factura OAuth not configured",
+    "message": "e-Factura OAuth not configured",
     "type": "invalid_request_error",
     "code": "efactura_oauth_not_configured",
     "status": 400
@@ -567,7 +810,8 @@ async function monitorSubmissionStatus(invoiceId) {
 
 ## Compliance Notes
 
-- **Mandatory Reporting**: B2B invoices above certain thresholds must be reported to SPV
+- **Mandatory Reporting**: All invoices (B2B and B2C) must be reported to SPV
 - **Deadlines**: Invoices must be submitted within legal deadlines (typically 5 days)
 - **Data Accuracy**: Ensure all client and invoice data is accurate before submission
 - **Record Keeping**: Maintain records of all e-Factura submissions for audit purposes
+- **B2C Requirements**: CNP is optional for B2C clients - use `-` if not available
