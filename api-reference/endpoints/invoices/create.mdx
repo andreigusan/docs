@@ -60,6 +60,10 @@ description: 'Create a new invoice with optional client creation'
   </Expandable>
 </ParamField>
 
+<ParamField body="series_id" type="string">
+  Invoice series CzUid. If not specified, the default series for the document type will be used.
+</ParamField>
+
 <ParamField body="items" type="array" required>
   Array of invoice line items
   
@@ -91,7 +95,7 @@ description: 'Create a new invoice with optional client creation'
 </ParamField>
 
 <ParamField body="document_type" type="string" default="fiscal">
-  Document type. Options: `fiscal`, `proforma`, `receipt`
+  Document type. Options: `fiscal`, `proforma`
 </ParamField>
 
 <ParamField body="date" type="string" default="today">
@@ -156,8 +160,12 @@ description: 'Create a new invoice with optional client creation'
       Invoice number (e.g., CTZ-2024-00001)
     </ResponseField>
     
+    <ResponseField name="series_id" type="string">
+      Invoice series CzUid
+    </ResponseField>
+    
     <ResponseField name="document_type" type="string">
-      Document type: fiscal, proforma, or receipt
+      Document type: fiscal or proforma
     </ResponseField>
     
     <ResponseField name="date" type="string">
@@ -422,6 +430,7 @@ curl_close($ch);
     "id": "inv_1a2b3c4d5e",
     "object": "invoice",
     "number": "CTZ-2024-00001",
+    "series_id": "yMzhgkh",
     "document_type": "fiscal",
     "date": "2024-01-15",
     "due_date": "2024-02-14",

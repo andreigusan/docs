@@ -18,13 +18,31 @@ description: 'Retrieve a paginated list of invoices'
   Filter by client CzUid
 </ParamField>
 
+<ParamField query="series_id" type="string">
+  Filter by invoice series CzUid
+</ParamField>
+
 <ParamField query="document_type" type="string">
   Filter by document type
   
   Options:
   - `fiscal` - Fiscal invoice
   - `proforma` - Proforma invoice
-  - `receipt` - Receipt
+</ParamField>
+
+<ParamField query="status" type="string">
+  Filter by invoice status
+  
+  Options:
+  - `draft` - Draft invoices
+  - `sent` - Sent but unpaid invoices
+  - `paid` - Paid invoices
+  - `overdue` - Overdue unpaid invoices
+  - `cancelled` - Cancelled/voided invoices
+</ParamField>
+
+<ParamField query="currency" type="string">
+  Filter by currency code (e.g., RON, EUR, USD)
 </ParamField>
 
 <ParamField query="is_paid" type="integer">
@@ -48,8 +66,10 @@ description: 'Retrieve a paginated list of invoices'
   
   Options:
   - `created_at` - Creation date
+  - `date` - Invoice date
   - `due_date` - Due date
   - `total` - Total amount
+  - `number` - Invoice number
 </ParamField>
 
 <ParamField query="order" type="string" default="desc">
@@ -95,7 +115,7 @@ description: 'Retrieve a paginated list of invoices'
         </ResponseField>
         
         <ResponseField name="document_type" type="string">
-          Document type: `fiscal`, `proforma`, or `receipt`
+          Document type: `fiscal` or `proforma`
         </ResponseField>
         
         <ResponseField name="date" type="string">

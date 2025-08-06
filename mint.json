@@ -78,6 +78,12 @@
             "api-reference/endpoints/products/update",
             "api-reference/endpoints/products/delete"
           ]
+        },
+        {
+          "group": "Settings",
+          "pages": [
+            "api-reference/endpoints/settings/get"
+          ]
         }
       ]
     },
