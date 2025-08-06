@@ -516,6 +516,48 @@ function createInvoiceWithRetry($invoiceData, $maxRetries = 3) {
     
     **Solution**: Use ISO 8601 date format
   </Card>
+
+  <Card title="E-Factura Not Configured" icon="file-certificate">
+    ```json
+    {
+      "error": {
+        "message": "E-Factura OAuth not configured",
+        "code": "efactura_oauth_not_configured",
+        "type": "invalid_request_error"
+      }
+    }
+    ```
+    
+    **Solution**: Complete OAuth setup in settings
+  </Card>
+
+  <Card title="Invoice Already Sent to SPV" icon="paper-plane">
+    ```json
+    {
+      "error": {
+        "message": "Invoice already sent to SPV",
+        "code": "already_sent_to_spv",
+        "current_status": "submitted"
+      }
+    }
+    ```
+    
+    **Solution**: Check invoice status before sending
+  </Card>
+
+  <Card title="Cannot Delete Used Product" icon="trash">
+    ```json
+    {
+      "error": {
+        "message": "Cannot delete product with associated invoices",
+        "code": "product_has_invoices",
+        "invoice_count": 5
+      }
+    }
+    ```
+    
+    **Solution**: Products used in invoices cannot be deleted
+  </Card>
 </CardGroup>
 
 ## Getting Help

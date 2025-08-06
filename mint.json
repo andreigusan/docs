@@ -33,12 +33,12 @@
   },
   "tabs": [
     {
-      "name": "API Reference",
-      "url": "api-reference"
+      "name": "Documentation",
+      "url": "/"
     },
     {
-      "name": "Examples",
-      "url": "examples"
+      "name": "API Reference",
+      "url": "api-reference"
     }
   ],
   "anchors": [],
@@ -109,18 +109,8 @@
         "concepts/pagination",
         "concepts/expanding-objects",
         "concepts/localization",
-        "concepts/invoice-lifecycle"
-      ]
-    },
-    {
-      "group": "Examples",
-      "pages": [
-        "examples/introduction",
-        "examples/client-management",
-        "examples/invoice-creation",
-        "examples/payment-processing",
-        "examples/e-factura-integration",
-        "examples/error-handling"
+        "concepts/invoice-lifecycle",
+        "concepts/efactura"
       ]
     }
   ],
@@ -162,7 +152,7 @@
   "redirects": [
     {
       "source": "/",
-      "destination": "/api-reference/introduction"
+      "destination": "/introduction"
     }
   ]
 }

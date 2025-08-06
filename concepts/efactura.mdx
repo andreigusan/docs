@@ -1,0 +1,573 @@
+---
+title: 'E-Factura Integration'
+description: 'Complete guide to integrating with the Romanian e-Factura (SPV) system'
+---
+
+## Overview
+
+E-Factura is Romania's electronic invoicing system managed by ANAF (National Agency for Fiscal Administration). All B2B transactions above certain thresholds must be reported to the SPV (Sistema Privata de Verificare) platform.
+
+Contazen provides seamless integration with the e-Factura system, handling the complex OAuth2 authentication, XML generation, and submission processes automatically.
+
+## Prerequisites
+
+Before using e-Factura features through the API, ensure your account is properly configured:
+
+1. **ANAF OAuth2 Setup**: Complete the OAuth2 authorization flow in your Contazen dashboard
+2. **Environment Selection**: Choose between `test` (sandbox) or `live` (production) mode
+3. **Proper Firm Registration**: Ensure your firm details (CUI, address, etc.) are accurate
+
+## Setup Process
+
+### 1. Check E-Factura Status
+
+First, verify your e-Factura configuration using the Settings endpoint:
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET "https://api.contazen.ro/v1/settings" \
+  -H "Authorization: Bearer your_api_key_here"
+```
+
+```javascript Node.js
+const response = await fetch('https://api.contazen.ro/v1/settings', {
+  headers: {
+    'Authorization': 'Bearer your_api_key_here',
+    'Content-Type': 'application/json'
+  }
+});
+
+const settings = await response.json();
+console.log('E-Factura Status:', settings.data.efactura);
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    'https://api.contazen.ro/v1/settings',
+    headers={'Authorization': 'Bearer your_api_key_here'}
+)
+
+settings = response.json()
+print('E-Factura Status:', settings['data']['efactura'])
+```
+
+```php PHP
+$ch = curl_init('https://api.contazen.ro/v1/settings');
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Authorization: Bearer your_api_key_here'
+]);
+
+$response = curl_exec($ch);
+$settings = json_decode($response, true);
+echo 'E-Factura Status: ' . json_encode($settings['data']['efactura']);
+```
+
+</CodeGroup>
+
+### 2. E-Factura Settings Response
+
+The settings response includes comprehensive e-Factura status information:
+
+```json
+{
+  "success": true,
+  "data": {
+    "efactura": {
+      "enabled": true,
+      "oauth_configured": true,
+      "test_mode_available": true,
+      "live_mode_available": true,
+      "oauth_created_at": "2024-01-15T10:30:00Z",
+      "oauth_expires_at": "2024-07-15T10:30:00Z",
+      "settings": {
+        "environment": "test",
+        "auto_send": false,
+        "auto_send_timing": "immediately",
+        "send_to_public_institutions": true
+      }
+    }
+  }
+}
+```
+
+### 3. Manual OAuth Setup
+
+If `oauth_configured` is `false`, you'll need to complete the OAuth setup in the Contazen dashboard before using the API endpoints.
+
+## Creating E-Factura Compatible Invoices
+
+### Invoice Requirements
+
+For invoices to be eligible for e-Factura submission:
+
+1. **Document Type**: Must be `fiscal` (not `proforma` or `receipt`)
+2. **Client Type**: Must be B2B with valid Romanian CUI
+3. **Complete Data**: All required fields must be present
+4. **Status**: Invoice must be finalized (not draft)
+
+### Example Invoice Creation
+
+<CodeGroup>
+
+```javascript Node.js
+const invoiceData = {
+  client_data: {
+    type: "b2b",
+    name: "Example SRL",
+    cui: "RO12345678",
+    address: "Str. Exemplu Nr. 1",
+    city: "București",
+    county: "București",
+    email: "contact@example.com"
+  },
+  items: [
+    {
+      description: "Servicii consultanță IT",
+      quantity: 10,
+      price: 150.00,
+      vat_rate: 19,
+      unit: "ore"
+    }
+  ],
+  document_type: "fiscal",
+  efactura_enabled: true,
+  observations: "Factură pentru servicii IT"
+};
+
+const response = await fetch('https://api.contazen.ro/v1/invoices', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer your_api_key_here',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify(invoiceData)
+});
+
+const invoice = await response.json();
+console.log('Invoice created:', invoice.data.id);
+```
+
+```python Python
+import requests
+
+invoice_data = {
+    "client_data": {
+        "type": "b2b",
+        "name": "Example SRL",
+        "cui": "RO12345678",
+        "address": "Str. Exemplu Nr. 1",
+        "city": "București",
+        "county": "București",
+        "email": "contact@example.com"
+    },
+    "items": [
+        {
+            "description": "Servicii consultanță IT",
+            "quantity": 10,
+            "price": 150.00,
+            "vat_rate": 19,
+            "unit": "ore"
+        }
+    ],
+    "document_type": "fiscal",
+    "efactura_enabled": True,
+    "observations": "Factură pentru servicii IT"
+}
+
+response = requests.post(
+    'https://api.contazen.ro/v1/invoices',
+    headers={'Authorization': 'Bearer your_api_key_here'},
+    json=invoice_data
+)
+
+invoice = response.json()
+print('Invoice created:', invoice['data']['id'])
+```
+
+</CodeGroup>
+
+## Sending Invoices to SPV
+
+### Basic SPV Submission
+
+Once you have a fiscal invoice, submit it to the e-Factura system:
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.contazen.ro/v1/invoices/inv_1a2b3c4d5e/send-to-spv" \
+  -H "Authorization: Bearer your_api_key_here" \
+  -H "Content-Type: application/json"
+```
+
+```javascript Node.js
+const response = await fetch(`https://api.contazen.ro/v1/invoices/${invoiceId}/send-to-spv`, {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer your_api_key_here',
+    'Content-Type': 'application/json'
+  }
+});
+
+const result = await response.json();
+if (result.success) {
+  console.log('Submitted to SPV:', result.data.submission_id);
+  console.log('Status:', result.data.status);
+} else {
+  console.error('Submission failed:', result.error.message);
+}
+```
+
+```python Python
+response = requests.post(
+    f'https://api.contazen.ro/v1/invoices/{invoice_id}/send-to-spv',
+    headers={'Authorization': 'Bearer your_api_key_here'}
+)
+
+result = response.json()
+if result['success']:
+    print('Submitted to SPV:', result['data']['submission_id'])
+    print('Status:', result['data']['status'])
+else:
+    print('Submission failed:', result['error']['message'])
+```
+
+</CodeGroup>
+
+### Environment Override
+
+You can override the default environment (test/live) for specific submissions:
+
+```bash
+curl -X POST "https://api.contazen.ro/v1/invoices/inv_1a2b3c4d5e/send-to-spv?environment=live" \
+  -H "Authorization: Bearer your_api_key_here"
+```
+
+### Successful Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "object": "efactura_submission",
+    "submission_id": "spv_abc123def456",
+    "status": "submitted",
+    "submitted_at": "2024-01-20T14:30:00Z",
+    "environment": "test"
+  }
+}
+```
+
+## Tracking Submission Status
+
+### Using Expand Parameter
+
+Retrieve invoice details with e-Factura status:
+
+```bash
+curl -X GET "https://api.contazen.ro/v1/invoices/inv_1a2b3c4d5e?expand[]=efactura" \
+  -H "Authorization: Bearer your_api_key_here"
+```
+
+### Response with E-Factura Status
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "inv_1a2b3c4d5e",
+    "number": "CTZ-2024-00001",
+    "status": "sent",
+    "efactura": {
+      "object": "efactura_submission",
+      "submission_id": "spv_abc123def456",
+      "status": "submitted",
+      "submitted_at": "2024-01-20T14:30:00Z",
+      "environment": "test",
+      "response_data": {
+        "index_incarcare": "123456789"
+      }
+    }
+  }
+}
+```
+
+## Voiding E-Factura Invoices
+
+### Standard Void Process
+
+When voiding an invoice that was sent to e-Factura, the system automatically sends a cancellation message to ANAF:
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.contazen.ro/v1/invoices/inv_1a2b3c4d5e/void" \
+  -H "Authorization: Bearer your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reason": "Eroare în date client",
+    "void_date": "2024-01-20"
+  }'
+```
+
+```javascript Node.js
+const voidData = {
+  reason: "Eroare în date client",
+  void_date: "2024-01-20"
+};
+
+const response = await fetch(`https://api.contazen.ro/v1/invoices/${invoiceId}/void`, {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer your_api_key_here',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify(voidData)
+});
+
+const result = await response.json();
+console.log('Invoice voided:', result.success);
+```
+
+</CodeGroup>
+
+### Void Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "inv_1a2b3c4d5e",
+    "status": "cancelled",
+    "void_reason": "Eroare în date client",
+    "void_date": "2024-01-20",
+    "efactura": {
+      "status": "cancelled",
+      "cancellation_sent": true
+    }
+  }
+}
+```
+
+## Error Handling
+
+### Common E-Factura Errors
+
+<CardGroup cols={2}>
+  <Card title="OAuth Not Configured" icon="key">
+    **Error Code**: `efactura_oauth_not_configured`
+    
+    **Solution**: Complete OAuth setup in dashboard before using API endpoints.
+  </Card>
+  
+  <Card title="Already Sent to SPV" icon="paper-plane">
+    **Error Code**: `already_sent_to_spv`
+    
+    **Solution**: Check invoice status before attempting submission.
+  </Card>
+  
+  <Card title="Invalid Document Type" icon="file-circle-xmark">
+    **Error Code**: `invalid_document_type`
+    
+    **Solution**: Only fiscal invoices can be sent to e-Factura.
+  </Card>
+  
+  <Card title="Draft Invoice" icon="pen-to-square">
+    **Error Code**: `invoice_is_draft`
+    
+    **Solution**: Finalize the invoice before submitting to SPV.
+  </Card>
+</CardGroup>
+
+### Error Response Example
+
+```json
+{
+  "success": false,
+  "error": {
+    "message": "E-Factura OAuth not configured",
+    "type": "invalid_request_error",
+    "code": "efactura_oauth_not_configured",
+    "status": 400
+  }
+}
+```
+
+### Retry Logic for Failures
+
+Implement retry logic for temporary failures:
+
+```javascript
+async function submitToSpvWithRetry(invoiceId, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const response = await fetch(`https://api.contazen.ro/v1/invoices/${invoiceId}/send-to-spv`, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer your_api_key_here',
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        return result;
+      }
+      
+      // Don't retry client errors
+      if (response.status >= 400 && response.status < 500) {
+        throw new Error(result.error.message);
+      }
+      
+      // Retry server errors
+      if (i < maxRetries - 1) {
+        await sleep(Math.pow(2, i) * 1000); // Exponential backoff
+      }
+      
+    } catch (error) {
+      if (i === maxRetries - 1) throw error;
+    }
+  }
+}
+```
+
+## Best Practices
+
+### 1. Environment Management
+
+- **Development**: Always start with `test` environment
+- **Production**: Switch to `live` only after thorough testing
+- **Token Management**: Monitor OAuth token expiration dates
+
+### 2. Error Handling
+
+```javascript
+async function createAndSubmitInvoice(invoiceData) {
+  try {
+    // Create invoice
+    const invoice = await createInvoice(invoiceData);
+    
+    // Check if eligible for e-Factura
+    if (invoice.data.document_type === 'fiscal') {
+      
+      // Submit to SPV
+      const submission = await submitToSpv(invoice.data.id);
+      
+      return {
+        invoice: invoice.data,
+        efactura: submission.data
+      };
+    }
+    
+    return { invoice: invoice.data };
+    
+  } catch (error) {
+    console.error('Invoice creation/submission failed:', error.message);
+    
+    // Handle specific error types
+    if (error.code === 'efactura_oauth_not_configured') {
+      throw new Error('Please configure e-Factura OAuth in dashboard');
+    }
+    
+    throw error;
+  }
+}
+```
+
+### 3. Batch Processing
+
+For multiple invoices, implement proper rate limiting:
+
+```javascript
+async function submitMultipleInvoices(invoiceIds) {
+  const results = [];
+  
+  for (const invoiceId of invoiceIds) {
+    try {
+      const result = await submitToSpv(invoiceId);
+      results.push({ invoiceId, success: true, data: result.data });
+      
+      // Rate limiting - wait between submissions
+      await sleep(1000);
+      
+    } catch (error) {
+      results.push({ invoiceId, success: false, error: error.message });
+    }
+  }
+  
+  return results;
+}
+```
+
+### 4. Status Monitoring
+
+Regularly check submission status for long-running processes:
+
+```javascript
+async function monitorSubmissionStatus(invoiceId) {
+  const response = await fetch(`https://api.contazen.ro/v1/invoices/${invoiceId}?expand[]=efactura`, {
+    headers: { 'Authorization': 'Bearer your_api_key_here' }
+  });
+  
+  const invoice = await response.json();
+  const efacturaStatus = invoice.data.efactura;
+  
+  if (efacturaStatus) {
+    console.log(`Invoice ${invoiceId} - SPV Status: ${efacturaStatus.status}`);
+    return efacturaStatus.status;
+  }
+  
+  return 'not_submitted';
+}
+```
+
+## Integration Checklist
+
+<Steps>
+  <Step title="Configure OAuth">
+    Complete the e-Factura OAuth setup in your Contazen dashboard
+  </Step>
+  
+  <Step title="Test Environment">
+    Start with test environment to validate your integration
+  </Step>
+  
+  <Step title="Create Test Invoice">
+    Create a fiscal invoice with valid Romanian client data
+  </Step>
+  
+  <Step title="Submit to SPV">
+    Test the send-to-spv endpoint with your test invoice
+  </Step>
+  
+  <Step title="Handle Errors">
+    Implement proper error handling for all scenarios
+  </Step>
+  
+  <Step title="Monitor Status">
+    Use the expand parameter to track submission status
+  </Step>
+  
+  <Step title="Production Ready">
+    Switch to live environment when ready for production
+  </Step>
+</Steps>
+
+## Support and Resources
+
+- **Dashboard**: Complete OAuth setup at [app.contazen.ro](https://app.contazen.ro)
+- **ANAF Documentation**: Official e-Factura technical documentation
+- **Support**: Contact [contact@contazen.ro](mailto:contact@contazen.ro) for integration help
+- **Status Page**: Monitor API status and e-Factura system availability
+
+## Compliance Notes
+
+- **Mandatory Reporting**: B2B invoices above certain thresholds must be reported to SPV
+- **Deadlines**: Invoices must be submitted within legal deadlines (typically 5 days)
+- **Data Accuracy**: Ensure all client and invoice data is accurate before submission
+- **Record Keeping**: Maintain records of all e-Factura submissions for audit purposes
