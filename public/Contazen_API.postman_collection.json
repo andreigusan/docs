@@ -1,0 +1,1292 @@
+{
+  "info": {
+    "name": "Contazen API",
+    "description": "Complete Contazen API collection with authentication and all endpoints. Version 2.11.0 includes:\n- Bearer token authentication (sk_live_ prefix)\n- Full CRUD operations for Clients, Invoices, and Products\n- **Invoice void/delete functionality**: Void invoices with storno creation and delete voided/draft invoices\n- **Invoice email functionality**: Auto-send on creation and manual send endpoint\n- **Email customization**: Override client email addresses and automatic email templates\n- **Automatic JSON response format** via Accept header\n- **Enhanced client validation**: CUI/CIF format validation, uniqueness checks, București sector validation\n- **Client type identification**: B2B/B2C classification based on is_firm field\n- **Complete client data**: All address fields included in list responses\n- **Consistent null values** for empty fields (not empty strings)\n- **Simplified product structure**: Essential fields only (name, description, currency, price, vat_rate, UBL codes)\n- **RON equivalent values** for non-RON currency invoices (exchange_rate, amounts_ron)\n- **Product integration**: Use existing products by CzUid or auto-create new ones\n- **Stripe-style expand parameter**: List invoices with optional lines/payments expansion\n- **VAT rates**: 21% (default), 19%, 11%, 9%, 5%, 0% with various exemptions\n- **Payment validation**: Prevents payments on already paid invoices\n- Invoice creation with existing client_id OR inline client_data\n- Automatic B2B client deduplication by CUI/CIF\n- Romanian CIF validation for RO clients\n- București sector validation for e-Invoice\n- PDF export with dual modes (direct download or URL)\n- E-Factura support with UBL codes and taxare inversă\n- Dynamic date generation in pre-request scripts\n- Settings endpoint for configuration data\n- Clean, focused API documentation without test endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "2.11.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{api_key}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Set timestamp for requests",
+          "pm.variables.set('timestamp', new Date().toISOString());",
+          "",
+          "// Set current date in Y-m-d format",
+          "const today = new Date();",
+          "const year = today.getFullYear();",
+          "const month = String(today.getMonth() + 1).padStart(2, '0');",
+          "const day = String(today.getDate()).padStart(2, '0');",
+          "pm.variables.set('current_date', `${year}-${month}-${day}`);",
+          "",
+          "// Set due date (30 days from today)",
+          "const dueDate = new Date();",
+          "dueDate.setDate(dueDate.getDate() + 30);",
+          "const dueYear = dueDate.getFullYear();",
+          "const dueMonth = String(dueDate.getMonth() + 1).padStart(2, '0');",
+          "const dueDay = String(dueDate.getDate()).padStart(2, '0');",
+          "pm.variables.set('due_date', `${dueYear}-${dueMonth}-${dueDay}`);",
+          "",
+          "console.log('Current date:', pm.variables.get('current_date'));",
+          "console.log('Due date:', pm.variables.get('due_date'));"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Check for rate limit headers",
+          "if (pm.response.headers.has('X-RateLimit-Limit')) {",
+          "    console.log('Rate Limit:', pm.response.headers.get('X-RateLimit-Limit'));",
+          "    console.log('Remaining:', pm.response.headers.get('X-RateLimit-Remaining'));",
+          "}",
+          "",
+          "// Check for request ID",
+          "if (pm.response.headers.has('X-Request-Id')) {",
+          "    console.log('Request ID:', pm.response.headers.get('X-Request-Id'));",
+          "}",
+          "",
+          "// Parse JSON response if available",
+          "try {",
+          "    const jsonData = pm.response.json();",
+          "    ",
+          "    // Store client_id if creating a client",
+          "    if (pm.info.requestName === 'Create Client' && jsonData.id) {",
+          "        pm.collectionVariables.set('client_id', jsonData.id);",
+          "        console.log('Stored client_id:', jsonData.id);",
+          "    }",
+          "    ",
+          "    // Store invoice_id if creating a bill",
+          "    if (pm.info.requestName === 'Create Invoice' && jsonData.id) {",
+          "        pm.collectionVariables.set('invoice_id', jsonData.id);",
+          "        console.log('Stored invoice_id:', jsonData.id);",
+          "    }",
+          "} catch(e) {",
+          "    // Not JSON response",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://contazen.test",
+      "type": "string",
+      "description": "Base URL for the application (use this for /api/v1/* endpoints)"
+    },
+    {
+      "key": "api_subdomain_url",
+      "value": "http://api.contazen.test",
+      "type": "string",
+      "description": "API subdomain URL (use this for /v1/* endpoints) - Set to api.contazen.ro for production"
+    },
+    {
+      "key": "api_key",
+      "value": "sk_live_YOUR_API_KEY_HERE",
+      "type": "string",
+      "description": "Your API key - Get it from Settings > API in the web interface"
+    },
+    {
+      "key": "locale",
+      "value": "en",
+      "type": "string",
+      "description": "API language (en or ro) - Can be set via locale parameter, Accept-Language header, or defaults to English"
+    },
+    {
+      "key": "client_id",
+      "value": "REPLACE_WITH_ACTUAL_CLIENT_ID",
+      "type": "string",
+      "description": "Client CzUid for testing - Run 'Create Client' first to get a valid ID"
+    },
+    {
+      "key": "invoice_id",
+      "value": "REPLACE_WITH_ACTUAL_INVOICE_ID",
+      "type": "string",
+      "description": "Invoice CzUid for testing - Run 'Create Invoice' first to get a valid ID"
+    },
+    {
+      "key": "series_id",
+      "value": "REPLACE_WITH_ACTUAL_SERIES_ID",
+      "type": "string",
+      "description": "Invoice series CzUid - Get from your firm's series settings"
+    },
+    {
+      "key": "product_id",
+      "value": "REPLACE_WITH_ACTUAL_PRODUCT_ID",
+      "type": "string",
+      "description": "Product CzUid for testing - Run 'Create Product' first to get a valid ID"
+    }
+  ],
+  "item": [
+    {
+      "name": "Clients",
+      "item": [
+        {
+          "name": "List Clients",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/clients?page=1&per_page=50",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "clients"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "per_page",
+                  "value": "50",
+                  "description": "Items per page (max 100)"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Search term"
+                },
+                {
+                  "key": "sort",
+                  "value": "name",
+                  "disabled": true,
+                  "description": "Sort field (name, created_at)"
+                },
+                {
+                  "key": "order",
+                  "value": "asc",
+                  "disabled": true,
+                  "description": "Sort order (asc, desc)"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Client Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/clients/{{client_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "clients",
+                "{{client_id}}"
+              ]
+            },
+            "description": "Get details of a specific client by CzUid"
+          }
+        },
+        {
+          "name": "Create Client",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Test Client SRL\",\n    \"email\": \"client@example.com\",\n    \"phone\": \"0722123456\",\n    \"cui\": \"12345678\",\n    \"cui_prefix\": \"RO\",\n    \"rc\": \"J40/1234/2024\",\n    \"address\": \"Str. Test nr. 1\",\n    \"city\": \"București\",\n    \"county\": \"București\",\n    \"country\": \"RO\",\n    \"postal_code\": \"010101\",\n    \"iban\": \"RO49AAAA1B31007593840000\",\n    \"bank\": \"Test Bank\",\n    \"contact_person\": \"Ion Popescu\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/clients",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "clients"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Client",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Updated Client Name SRL\",\n    \"email\": \"updated@example.com\",\n    \"phone\": \"0722999888\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/clients/{{client_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "clients",
+                "{{client_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Client",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/clients/{{client_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "clients",
+                "{{client_id}}"
+              ]
+            },
+            "description": "Soft delete a client (cannot delete if has bills)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Invoices",
+      "item": [
+        {
+          "name": "List Invoices",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices?page=1&per_page=50",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "per_page",
+                  "value": "50"
+                },
+                {
+                  "key": "expand[]",
+                  "value": "lines",
+                  "disabled": true,
+                  "description": "Expand lines (items) in response. Use multiple expand[] params for multiple expansions"
+                },
+                {
+                  "key": "expand[]",
+                  "value": "payments",
+                  "disabled": true,
+                  "description": "Expand payments in response"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{client_id}}",
+                  "disabled": true,
+                  "description": "Filter by client CzUid"
+                },
+                {
+                  "key": "series_id",
+                  "value": "{{series_id}}",
+                  "disabled": true,
+                  "description": "Filter by series CzUid"
+                },
+                {
+                  "key": "document_type",
+                  "value": "fiscal",
+                  "disabled": true,
+                  "description": "fiscal, proforma"
+                },
+                {
+                  "key": "status",
+                  "value": "paid",
+                  "disabled": true,
+                  "description": "draft, sent, paid, overdue, cancelled"
+                },
+                {
+                  "key": "currency",
+                  "value": "EUR",
+                  "disabled": true,
+                  "description": "Filter by currency code (e.g., RON, EUR, USD)"
+                },
+                {
+                  "key": "is_paid",
+                  "value": "0",
+                  "disabled": true,
+                  "description": "0 or 1"
+                },
+                {
+                  "key": "start_date",
+                  "value": "2024-01-01",
+                  "disabled": true,
+                  "description": "Start date (Y-m-d)"
+                },
+                {
+                  "key": "end_date",
+                  "value": "2024-12-31",
+                  "disabled": true,
+                  "description": "End date (Y-m-d)"
+                },
+                {
+                  "key": "sort",
+                  "value": "created_at",
+                  "disabled": true,
+                  "description": "created_at, date, due_date, total, number"
+                },
+                {
+                  "key": "order",
+                  "value": "desc",
+                  "disabled": true,
+                  "description": "asc or desc"
+                }
+              ]
+            },
+            "description": "List invoices with pagination and filtering. By default returns basic invoice data only (no lines/items or payments). Use the expand parameter to include nested data:\n\n**Expand Options (Stripe-style):**\n- `expand[]=lines` - Include invoice line items\n- `expand[]=payments` - Include payment records\n- `expand[]=lines&expand[]=payments` - Include both\n\n**Performance Note:** Expanding nested data on list requests may impact response time. Only expand what you need.\n\n**Response:** Returns paginated list with basic invoice fields by default. Expanded fields are only included when specifically requested."
+          }
+        },
+        {
+          "name": "Get Invoice Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices/{{invoice_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices",
+                "{{invoice_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Invoice (with existing client)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"client_id\": \"{{client_id}}\",\n    \"document_type\": \"fiscal\",\n    \"date\": \"{{current_date}}\",\n    \"due_date\": \"{{due_date}}\",\n    \"currency\": \"RON\",\n    \"is_draft\": 0,\n    \"efactura_enabled\": 1,\n    \"observations\": \"Factură creată prin API la {{timestamp}}\",\n    \"items\": [\n        {\n            \"description\": \"Servicii consultanță\",\n            \"quantity\": 1,\n            \"price\": 1000,\n            \"vat_rate\": 21,\n            \"unit\": \"ore\",\n            \"ubl_um\": \"HUR\"\n        },\n        {\n            \"description\": \"Dezvoltare software\",\n            \"quantity\": 10,\n            \"price\": 150,\n            \"vat_rate\": 21,\n            \"unit\": \"ore\",\n            \"ubl_um\": \"HUR\"\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            },
+            "description": "Create a new bill/invoice with an existing client using client_id. VAT key is automatically determined from vat_rate for proper dropdown display in UI. You can override with explicit vat_key if needed."
+          }
+        },
+        {
+          "name": "Create Invoice (with B2B client data)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"client_data\": {\n        \"type\": \"b2b\",\n        \"name\": \"Tech Solutions SRL\",\n        \"cui\": \"RO12345678\",\n        \"rc\": \"J40/1234/2024\",\n        \"address\": \"Str. Tehnologiei nr. 10\",\n        \"city\": \"București\",\n        \"county\": \"București\",\n        \"country\": \"RO\",\n        \"postal_code\": \"010101\",\n        \"email\": \"contact@techsolutions.ro\",\n        \"phone\": \"+40722123456\",\n        \"iban\": \"RO49AAAA1B31007593840000\",\n        \"bank\": \"BCR\",\n        \"contact_person\": \"Ion Popescu\"\n    },\n    \"document_type\": \"fiscal\",\n    \"date\": \"{{current_date}}\",\n    \"due_date\": \"{{due_date}}\",\n    \"currency\": \"RON\",\n    \"is_draft\": 0,\n    \"efactura_enabled\": 1,\n    \"observations\": \"Factură B2B creată prin API\",\n    \"items\": [\n        {\n            \"description\": \"Software Development\",\n            \"quantity\": 10,\n            \"price\": 150,\n            \"vat_rate\": 21,\n            \"unit\": \"hours\",\n            \"ubl_um\": \"HUR\"\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            },
+            "description": "Create a new invoice with inline B2B client data. If a client with the same CUI exists, it will be reused. Otherwise, a new client will be created."
+          }
+        },
+        {
+          "name": "Create Invoice (with B2C client data)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"client_data\": {\n        \"type\": \"b2c\",\n        \"name\": \"Maria Ionescu\",\n        \"address\": \"Str. Florilor nr. 25, Ap. 3\",\n        \"city\": \"Cluj-Napoca\",\n        \"county\": \"Cluj\",\n        \"postal_code\": \"400123\",\n        \"email\": \"maria.ionescu@email.com\",\n        \"phone\": \"+40744556677\"\n    },\n    \"document_type\": \"fiscal\",\n    \"date\": \"{{current_date}}\",\n    \"due_date\": \"{{due_date}}\",\n    \"currency\": \"RON\",\n    \"is_draft\": 0,\n    \"efactura_enabled\": 1,\n    \"observations\": \"Factură persoană fizică\",\n    \"items\": [\n        {\n            \"description\": \"Consulting Services\",\n            \"quantity\": 1,\n            \"price\": 500,\n            \"vat_rate\": 21,\n            \"unit\": \"project\",\n            \"ubl_um\": \"C62\"\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            },
+            "description": "Create a new invoice with inline B2C (individual) client data. A new client will be created for the individual."
+          }
+        },
+        {
+          "name": "Create Invoice with Auto-Send Email",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"client_data\": {\n        \"type\": \"b2b\",\n        \"name\": \"Auto Email Company SRL\",\n        \"cui\": \"12345678\",\n        \"address\": \"Str. Email nr. 1\",\n        \"city\": \"București, Sector 1\",\n        \"email\": \"company@example.com\"\n    },\n    \"document_type\": \"fiscal\",\n    \"date\": \"{{current_date}}\",\n    \"due_date\": \"{{due_date}}\",\n    \"currency\": \"RON\",\n    \"efactura_enabled\": 1,\n    \"send_email\": true,\n    \"email_address\": \"override@example.com\",\n    \"observations\": \"Invoice will be automatically sent by email\",\n    \"items\": [\n        {\n            \"description\": \"Email Service\",\n            \"quantity\": 1,\n            \"price\": 200,\n            \"vat_rate\": 21,\n            \"unit\": \"buc\",\n            \"ubl_um\": \"H87\"\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            },
+            "description": "Create a new invoice and automatically send it by email. Uses email_address parameter to override client's email. If email_address is not provided, uses client's email from client_data or existing client."
+          }
+        },
+        {
+          "name": "Create Invoice (minimal B2B)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"client_data\": {\n        \"type\": \"b2b\",\n        \"name\": \"Minimal Company SRL\",\n        \"cui\": \"98765432\",\n        \"address\": \"Str. Minimală nr. 1\"\n    },\n    \"document_type\": \"fiscal\",\n    \"date\": \"{{current_date}}\",\n    \"due_date\": \"{{due_date}}\",\n    \"currency\": \"RON\",\n    \"efactura_enabled\": 1,\n    \"items\": [\n        {\n            \"description\": \"Quick Service\",\n            \"quantity\": 1,\n            \"price\": 100,\n            \"vat_rate\": 21,\n            \"unit\": \"buc\",\n            \"ubl_um\": \"H87\"\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            },
+            "description": "Create invoice with minimal required B2B client data (only name, CUI, and address required)"
+          }
+        },
+        {
+          "name": "Create Invoice (e-Factura compliant)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"client_id\": \"{{client_id}}\",\n    \"document_type\": \"fiscal\",\n    \"date\": \"{{current_date}}\",\n    \"due_date\": \"{{due_date}}\",\n    \"currency\": \"RON\",\n    \"efactura_enabled\": 1,\n    \"observations\": \"Factură compatibilă e-Factura\",\n    \"items\": [\n        {\n            \"description\": \"Laptop DELL XPS 15\",\n            \"quantity\": 2,\n            \"price\": 5000,\n            \"vat_rate\": 21,\n            \"unit\": \"bucăți\",\n            \"ubl_um\": \"H87\",\n            \"ubl_nc\": \"84713000\",\n            \"ubl_cpv\": \"30213100-6\"\n        },\n        {\n            \"description\": \"Servicii instalare și configurare\",\n            \"quantity\": 8,\n            \"price\": 150,\n            \"vat_rate\": 21,\n            \"unit\": \"ore\",\n            \"ubl_um\": \"HUR\"\n        },\n        {\n            \"description\": \"Transport\",\n            \"quantity\": 50,\n            \"price\": 2.5,\n            \"vat_rate\": 9,\n            \"unit\": \"km\",\n            \"ubl_um\": \"KMT\"\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            },
+            "description": "Create invoice with full e-Factura compliance including UBL unit codes (ubl_um), Combined Nomenclature codes (ubl_nc), and Common Procurement Vocabulary codes (ubl_cpv). If ubl_um is not provided, it defaults to H87 (bucată/piece)."
+          }
+        },
+        {
+          "name": "Create Invoice (with discount item)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"client_id\": \"{{client_id}}\",\n    \"document_type\": \"fiscal\",\n    \"date\": \"{{current_date}}\",\n    \"due_date\": \"{{due_date}}\",\n    \"currency\": \"RON\",\n    \"efactura_enabled\": 1,\n    \"items\": [\n        {\n            \"description\": \"Product\",\n            \"quantity\": 1,\n            \"price\": 1000,\n            \"vat_rate\": 21,\n            \"unit\": \"buc\",\n            \"ubl_um\": \"H87\"\n        },\n        {\n            \"description\": \"Discount 10%\",\n            \"quantity\": 1,\n            \"price\": -100,\n            \"vat_rate\": 21,\n            \"unit\": \"buc\",\n            \"ubl_um\": \"H87\"\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            },
+            "description": "Create invoice with negative price item (discount/credit). Negative prices are allowed for discounts and credits."
+          }
+        },
+        {
+          "name": "Create Invoice (e-Factura disabled)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"client_id\": \"{{client_id}}\",\n    \"document_type\": \"fiscal\",\n    \"date\": \"{{current_date}}\",\n    \"due_date\": \"{{due_date}}\",\n    \"currency\": \"RON\",\n    \"efactura_enabled\": 0,\n    \"observations\": \"Invoice without e-Factura submission\",\n    \"items\": [\n        {\n            \"description\": \"Service not for e-Factura\",\n            \"quantity\": 1,\n            \"price\": 100,\n            \"vat_rate\": 21,\n            \"unit\": \"buc\"\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            },
+            "description": "Create invoice with e-Factura disabled. Set efactura_enabled to 0 to prevent automatic submission to ANAF e-Factura system. Default is 1 (enabled)."
+          }
+        },
+        {
+          "name": "Create Invoice (with all optional fields)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"client_id\": \"{{client_id}}\",\n    \"document_type\": \"fiscal\",\n    \"series_id\": \"{{series_id}}\",\n    \"date\": \"{{current_date}}\",\n    \"due_date\": \"{{due_date}}\",\n    \"currency\": \"EUR\",\n    \"language\": \"EN\",\n    \"efactura_enabled\": 1,\n    \"with_due_date\": 1,\n    \"with_currency_exchange\": 1,\n    \"currency_exchange\": {\n        \"currency_to\": \"RON\",\n        \"currency_exchange_rate\": 4.97,\n        \"currency_exchange_date\": \"{{current_date}}\"\n    },\n    \"with_vat_inverted\": 0,\n    \"payment_type\": \"Transfer bancar\",\n    \"payment_installments\": 3,\n    \"with_delegate\": 1,\n    \"delegate\": {\n        \"delegate_name\": \"Ion Popescu\",\n        \"delegate_ci\": \"MX 123456\",\n        \"delegate_transport\": \"Auto propriu\",\n        \"delegate_date\": \"{{current_date}}\",\n        \"delegate_time\": \"14:30\"\n    },\n    \"info\": \"Additional invoice information\\nPayment details: IBAN RO12BTRL1234567890\\nSpecial terms apply\",\n    \"observations\": \"Invoice with all optional fields\",\n    \"items\": [\n        {\n            \"description\": \"Professional Services\",\n            \"description_extended\": \"Implementation and configuration of enterprise software solution including training and support\",\n            \"quantity\": 40,\n            \"price\": 150,\n            \"vat_rate\": 21,\n            \"unit\": \"ore\",\n            \"ubl_um\": \"HUR\"\n        },\n        {\n            \"description\": \"Software License\",\n            \"description_extended\": \"Annual enterprise license for up to 100 users with premium support\",\n            \"quantity\": 1,\n            \"price\": 5000,\n            \"vat_rate\": 21,\n            \"unit\": \"bucată\",\n            \"ubl_um\": \"H87\"\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            },
+            "description": "Create invoice with all optional fields including: custom series, language, currency exchange, delegate info, payment details, extended descriptions. All fields are optional - omit any you don't need."
+          }
+        },
+        {
+          "name": "Create Invoice (taxare inversă)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"client_id\": \"{{client_id}}\",\n    \"document_type\": \"fiscal\",\n    \"date\": \"{{current_date}}\",\n    \"due_date\": \"{{due_date}}\",\n    \"currency\": \"RON\",\n    \"with_vat_inverted\": 1,\n    \"efactura_enabled\": 1,\n    \"observations\": \"Taxare inversă conform art. 331 din Codul Fiscal\",\n    \"items\": [\n        {\n            \"description\": \"Servicii construcții\",\n            \"quantity\": 100,\n            \"price\": 50,\n            \"vat_rate\": 0,\n            \"unit\": \"mp\",\n            \"ubl_um\": \"MTK\"\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            },
+            "description": "Create invoice with reverse VAT charge (taxare inversă). Set with_vat_inverted to 1 and use 0% VAT rate for items. VAT key 8 (reverse charge) is automatically set when with_vat_inverted is enabled."
+          }
+        },
+        {
+          "name": "Create Invoice (with manual VAT key)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"client_id\": \"{{client_id}}\",\n    \"document_type\": \"fiscal\",\n    \"date\": \"{{current_date}}\",\n    \"due_date\": \"{{due_date}}\",\n    \"currency\": \"RON\",\n    \"efactura_enabled\": 1,\n    \"observations\": \"Invoice with manual VAT key override\",\n    \"items\": [\n        {\n            \"description\": \"Special service with SFDD exemption\",\n            \"quantity\": 1,\n            \"price\": 1000,\n            \"vat_rate\": 0,\n            \"vat_key\": 5,\n            \"unit\": \"buc\",\n            \"ubl_um\": \"H87\"\n        },\n        {\n            \"description\": \"Standard service\",\n            \"quantity\": 5,\n            \"price\": 200,\n            \"vat_rate\": 21,\n            \"unit\": \"ore\",\n            \"ubl_um\": \"HUR\"\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            },
+            "description": "Example showing manual VAT key override. VAT keys: 1=21%, 2=9%, 3=5%, 4=0% Exempt, 5=0% SFDD, 6=0% SDD, 7=0% VAT Included, 8=0% Reverse Charge, 9=19%, 11=11%. If not specified, key is auto-determined from vat_rate."
+          }
+        },
+        {
+          "name": "Create Invoice (with existing products)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"client_id\": \"{{client_id}}\",\n    \"document_type\": \"fiscal\",\n    \"date\": \"{{current_date}}\",\n    \"due_date\": \"{{due_date}}\",\n    \"currency\": \"RON\",\n    \"is_draft\": 0,\n    \"efactura_enabled\": 1,\n    \"observations\": \"Invoice with existing products from catalog\",\n    \"items\": [\n        {\n            \"product_czuid\": \"REPLACE_WITH_PRODUCT_CZUID\",\n            \"quantity\": 2,\n            \"price\": 500,\n            \"vat_rate\": 21\n        },\n        {\n            \"product_czuid\": \"REPLACE_WITH_ANOTHER_PRODUCT_CZUID\",\n            \"quantity\": 1\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            },
+            "description": "Create invoice using existing products from your catalog by their CzUid. When using product_czuid, the product name and description are pulled from the database. You can override price, quantity, vat_rate, and unit. If not specified, values from the product catalog are used."
+          }
+        },
+        {
+          "name": "Create Invoice (save items as products)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"client_id\": \"{{client_id}}\",\n    \"document_type\": \"fiscal\",\n    \"date\": \"{{current_date}}\",\n    \"due_date\": \"{{due_date}}\",\n    \"currency\": \"RON\",\n    \"is_draft\": 0,\n    \"efactura_enabled\": 1,\n    \"observations\": \"Invoice with new products saved to catalog\",\n    \"items\": [\n        {\n            \"description\": \"Premium Web Hosting\",\n            \"description_extended\": \"High-performance SSD hosting with 99.9% uptime guarantee\",\n            \"quantity\": 1,\n            \"price\": 299,\n            \"vat_rate\": 21,\n            \"unit\": \"luna\",\n            \"ubl_um\": \"MON\",\n            \"save_as_product\": true\n        },\n        {\n            \"description\": \"Domain Registration .ro\",\n            \"description_extended\": \"Romanian domain registration for 1 year\",\n            \"quantity\": 1,\n            \"price\": 50,\n            \"vat_rate\": 21,\n            \"unit\": \"an\",\n            \"ubl_um\": \"ANN\",\n            \"save_as_product\": true\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            },
+            "description": "Create invoice and save items as new products in your catalog. Set save_as_product: true to create products. If a product with the same name already exists, the request will fail with a validation error to prevent duplicates."
+          }
+        },
+        {
+          "name": "Create Invoice (mixed products)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"client_id\": \"{{client_id}}\",\n    \"document_type\": \"fiscal\",\n    \"date\": \"{{current_date}}\",\n    \"due_date\": \"{{due_date}}\",\n    \"currency\": \"EUR\",\n    \"currency_rate\": 4.9756,\n    \"is_draft\": 0,\n    \"efactura_enabled\": 1,\n    \"observations\": \"Mixed invoice: existing products + new items\",\n    \"items\": [\n        {\n            \"product_czuid\": \"REPLACE_WITH_PRODUCT_CZUID\",\n            \"quantity\": 3,\n            \"price\": 100\n        },\n        {\n            \"description\": \"Custom Development Work\",\n            \"description_extended\": \"Tailored feature development based on requirements\",\n            \"quantity\": 8,\n            \"price\": 75,\n            \"vat_rate\": 21,\n            \"unit\": \"ore\",\n            \"ubl_um\": \"HUR\",\n            \"save_as_product\": false\n        },\n        {\n            \"description\": \"Emergency Support\",\n            \"quantity\": 2,\n            \"price\": 150,\n            \"vat_rate\": 21,\n            \"unit\": \"ore\",\n            \"save_as_product\": true\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            },
+            "description": "Create invoice mixing existing products (by czuid), one-off items (save_as_product: false), and new products to save (save_as_product: true). Shows EUR currency with exchange rate - RON equivalents will be included in response."
+          }
+        },
+        {
+          "name": "Create Invoice (with 11% VAT)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"client_id\": \"{{client_id}}\",\n    \"document_type\": \"fiscal\",\n    \"date\": \"{{current_date}}\",\n    \"due_date\": \"{{due_date}}\",\n    \"currency\": \"RON\",\n    \"is_draft\": 0,\n    \"efactura_enabled\": 1,\n    \"observations\": \"Invoice with reduced 11% VAT rate\",\n    \"items\": [\n        {\n            \"description\": \"Servicii alimentație publică\",\n            \"description_extended\": \"Servicii de restaurant și catering - cota redusă TVA 11%\",\n            \"quantity\": 10,\n            \"price\": 50,\n            \"vat_rate\": 11,\n            \"unit\": \"buc\",\n            \"ubl_um\": \"H87\"\n        },\n        {\n            \"description\": \"Cazare hotel\",\n            \"description_extended\": \"Servicii de cazare - cota redusă TVA 11%\",\n            \"quantity\": 3,\n            \"price\": 200,\n            \"vat_rate\": 11,\n            \"unit\": \"noapte\",\n            \"ubl_um\": \"DAY\"\n        },\n        {\n            \"description\": \"Transport persoane\",\n            \"quantity\": 1,\n            \"price\": 150,\n            \"vat_rate\": 21,\n            \"unit\": \"buc\",\n            \"ubl_um\": \"H87\"\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            },
+            "description": "Create invoice with 11% reduced VAT rate for eligible services. The 11% rate applies to specific categories like food services, accommodation, etc. VAT key 11 is automatically assigned for 11% VAT rate. Note: 11% VAT rate is available starting August 1, 2025."
+          }
+        },
+        {
+          "name": "Create Invoice (e-Factura SPV Test)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"client_id\": \"{{client_id}}\",\n    \"document_type\": \"fiscal\",\n    \"date\": \"{{current_date}}\",\n    \"due_date\": \"{{due_date}}\",\n    \"currency\": \"RON\",\n    \"is_draft\": 0,\n    \"efactura_enabled\": 1,\n    \"spv_environment\": \"test\",\n    \"observations\": \"Test invoice for e-Factura SPV environment\",\n    \"items\": [\n        {\n            \"description\": \"Test Product\",\n            \"quantity\": 1,\n            \"price\": 100,\n            \"vat_rate\": 21,\n            \"unit\": \"buc\",\n            \"ubl_um\": \"H87\"\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            },
+            "description": "Create invoice in e-Factura SPV test environment. Use spv_environment: 'test' for testing e-Factura integration without submitting to production ANAF. The SPV environment determines which OAuth keys to use. Requires OAuth configuration at /firm/index/efactura. If OAuth is not configured, returns oauth_not_configured error."
+          }
+        },
+        {
+          "name": "Create Invoice (with Test Series)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"series_id\": \"{{series_id}}\",\n    \"client_id\": \"{{client_id}}\",\n    \"document_type\": \"fiscal\",\n    \"date\": \"{{current_date}}\",\n    \"due_date\": \"{{due_date}}\",\n    \"currency\": \"RON\",\n    \"is_draft\": 1,\n    \"efactura_enabled\": 0,\n    \"observations\": \"TEST INVOICE - DO NOT USE FOR PRODUCTION\",\n    \"items\": [\n        {\n            \"description\": \"TEST - Service Item\",\n            \"quantity\": 1,\n            \"price\": 100,\n            \"vat_rate\": 21\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            },
+            "description": "Create test invoice using a dedicated test series. Best practice for API testing: 1) Create a TEST series in your account, 2) Use series_id to specify it, 3) Create as draft (is_draft: 1), 4) Disable e-Factura (efactura_enabled: 0). This allows safe testing without affecting production data or invoice numbering."
+          }
+        },
+        {
+          "name": "Mark Invoice as Paid",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"amount\": 2975.00,\n    \"payment_date\": \"{{current_date}}\",\n    \"payment_method\": \"bank_transfer\",\n    \"observations\": \"Plată prin transfer bancar\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices/{{invoice_id}}/pay",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices",
+                "{{invoice_id}}",
+                "pay"
+              ]
+            },
+            "description": "Record a payment for an invoice. Returns is_paid: true when fully paid, false for partial payments. Includes total_amount and total_paid for transparency. **Note**: Invoices already marked as paid cannot accept additional payments and will return a validation error."
+          }
+        },
+        {
+          "name": "Download Invoice PDF",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices/{{invoice_id}}/pdf",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices",
+                "{{invoice_id}}",
+                "pdf"
+              ]
+            },
+            "description": "Download the invoice as PDF directly (default mode). The PDF file will be returned as binary data with appropriate headers."
+          }
+        },
+        {
+          "name": "Get Invoice PDF URL",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices/{{invoice_id}}/pdf?mode=url",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices",
+                "{{invoice_id}}",
+                "pdf"
+              ],
+              "query": [
+                {
+                  "key": "mode",
+                  "value": "url",
+                  "description": "Return a JSON response with temporary download URL instead of the PDF file"
+                }
+              ]
+            },
+            "description": "Get a temporary signed URL to download the invoice as PDF. URL expires after 1 hour. Good for webhooks and async processing."
+          }
+        },
+        {
+          "name": "Send Invoice by Email",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"customer@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices/{{invoice_id}}/send",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices",
+                "{{invoice_id}}",
+                "send"
+              ]
+            },
+            "description": "Send an existing invoice to client by email. Optional email parameter overrides client's email address. Falls back to client's email if no email provided."
+          }
+        },
+        {
+          "name": "Void Invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"reason\": \"Customer request\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices/{{invoice_id}}/void",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices",
+                "{{invoice_id}}",
+                "void"
+              ]
+            },
+            "description": "Void an invoice. For fiscal invoices with invoice numbers, this marks them as voided following Romanian accounting regulations. For draft invoices (no invoice number), this marks them as cancelled. **Note**: Voided invoices cannot be edited or sent, only deleted."
+          }
+        },
+        {
+          "name": "Delete Invoice",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices/{{invoice_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices",
+                "{{invoice_id}}"
+              ]
+            },
+            "description": "Permanently delete an invoice. **Important**: Only draft invoices (no invoice number) or voided invoices can be deleted. Fiscal invoices with invoice numbers must be voided first before deletion. **Sequential Numbering Rule**: Voided invoices with numbers can only be deleted if they are the last invoice in their series to maintain sequential invoice numbering."
+          }
+        },
+        [
+          {
+            "name": "Unvoid Invoice",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{}"
+              },
+              "url": {
+                "raw": "{{base_url}}/api/v1/invoices/{{invoice_id}}/unvoid",
+                "host": [
+                  "{{base_url}}"
+                ],
+                "path": [
+                  "api",
+                  "v1",
+                  "invoices",
+                  "{{invoice_id}}",
+                  "unvoid"
+                ]
+              },
+              "description": "Unvoid a previously voided invoice. This restores the invoice to its previous state, allowing it to be edited and sent again. Only voided invoices can be unvoided."
+            }
+          },
+          {
+            "name": "Send Invoice to SPV",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n    \"test_mode\": true\n}"
+              },
+              "url": {
+                "raw": "{{base_url}}/api/v1/invoices/{{invoice_id}}/send-to-spv",
+                "host": [
+                  "{{base_url}}"
+                ],
+                "path": [
+                  "api",
+                  "v1",
+                  "invoices",
+                  "{{invoice_id}}",
+                  "send-to-spv"
+                ]
+              },
+              "description": "Send an invoice to the SPV (e-Factura test environment). This allows testing e-Factura submission without affecting production data. The invoice must be e-Factura enabled and the firm must have SPV OAuth credentials configured."
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "name": "Products",
+      "item": [
+        {
+          "name": "List Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/products?page=1&per_page=50",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "per_page",
+                  "value": "50",
+                  "description": "Items per page (max 100)"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Search term (name)"
+                },
+                {
+                  "key": "category_id",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filter by category"
+                },
+                {
+                  "key": "is_active",
+                  "value": "1",
+                  "disabled": true,
+                  "description": "0 or 1"
+                },
+                {
+                  "key": "sort",
+                  "value": "name",
+                  "disabled": true,
+                  "description": "name, price, created_at"
+                },
+                {
+                  "key": "order",
+                  "value": "asc",
+                  "disabled": true,
+                  "description": "asc or desc"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Product Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/products/{{product_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products",
+                "{{product_id}}"
+              ]
+            },
+            "description": "Get details of a specific product by CzUid"
+          }
+        },
+        {
+          "name": "Create Product",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Test Product\",\n    \"description\": \"Test product description\",\n    \"currency\": \"RON\",\n    \"price\": 100.00,\n    \"vat_rate\": 21,\n    \"unit_of_measure\": \"buc\",\n    \"ubl_um\": \"H87\",\n    \"ubl_nc\": \"84713000\",\n    \"ubl_cpv\": \"30213100-6\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/products",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Product",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Updated Product Name\",\n    \"price\": 120.00,\n    \"description\": \"Updated description\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/products/{{product_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products",
+                "{{product_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Product",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/products/{{product_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products",
+                "{{product_id}}"
+              ]
+            },
+            "description": "Delete a product (cannot delete if used in invoices)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Settings",
+      "item": [
+        {
+          "name": "Get Account Settings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "settings"
+              ]
+            },
+            "description": "Retrieve account settings and configuration including firm details, invoice series, e-Factura status, bank accounts, currencies, and subscription information. This is a read-only endpoint that provides comprehensive configuration data for the authenticated firm."
+          }
+        }
+      ]
+    }
+  ]
+}
