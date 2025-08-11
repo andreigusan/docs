@@ -124,7 +124,7 @@
       "method": "bearer"
     }
   },
-  "openapi": "/contazen-api.openapi.yaml",
+  "openapi": "contazen-api.openapi.yaml",
   "feedback": {
     "thumbsRating": true,
     "suggestEdit": true
