@@ -107,6 +107,7 @@
     {
       "group": "Core Concepts",
       "pages": [
+        "concepts/multi-work-point",
         "concepts/pagination",
         "concepts/expanding-objects",
         "concepts/localization",
@@ -121,10 +122,11 @@
   },
   "api": {
     "baseUrl": "https://api.contazen.ro/v1",
-    "auth": {
-      "method": "bearer"
+    "playground": {
+      "mode": "show"
     }
   },
+  "openapi": "contazen-api.openapi.yaml",
   "feedback": {
     "thumbsRating": true,
     "suggestEdit": true

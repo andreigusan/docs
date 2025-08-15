@@ -1,0 +1,329 @@
+---
+title: 'Multi-Work-Point Access'
+description: 'Manage data across multiple business locations with a single API key'
+---
+
+## Overview
+
+The Contazen API supports multi-work-point (multi-branch) access, allowing you to manage data across all locations of your business using a single API key. This is particularly useful for businesses with multiple offices, stores, or branches.
+
+## How It Works
+
+When you authenticate with an API key, you automatically gain access to:
+- The work point where the API key was created
+- All other work points belonging to the same parent company
+
+<Info>
+  **Work Point** = A physical business location or branch
+  **Parent Company** = The legal entity that owns multiple work points
+</Info>
+
+## Accessing Specific Work Points
+
+By default, API requests operate on the work point where the API key was created. To access data from a different work point, include the `work_point_id` parameter in your request.
+
+### Getting Work Point IDs
+
+First, retrieve the list of available work points:
+
+<CodeGroup>
+
+```bash cURL
+curl https://api.contazen.ro/v1/settings \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.contazen.ro/v1/settings', {
+  headers: {
+    'Authorization': 'Bearer sk_live_YOUR_API_KEY'
+  }
+});
+
+const data = await response.json();
+console.log(data.work_points); // List of available work points
+```
+
+```php PHP
+$client = new Contazen\Client('sk_live_YOUR_API_KEY');
+$settings = $client->settings->get();
+
+foreach ($settings->work_points as $workPoint) {
+    echo $workPoint->id . ': ' . $workPoint->name . PHP_EOL;
+}
+```
+
+</CodeGroup>
+
+## Working with Multiple Work Points
+
+### List Invoices from All Work Points
+
+To retrieve invoices from all work points, omit the `work_point_id` parameter:
+
+<CodeGroup>
+
+```bash cURL
+curl https://api.contazen.ro/v1/invoices \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.contazen.ro/v1/invoices', {
+  headers: {
+    'Authorization': 'Bearer sk_live_YOUR_API_KEY'
+  }
+});
+
+const invoices = await response.json();
+// Returns invoices from all accessible work points
+```
+
+</CodeGroup>
+
+### List Invoices from Specific Work Point
+
+To retrieve invoices from a specific work point:
+
+<CodeGroup>
+
+```bash cURL
+curl https://api.contazen.ro/v1/invoices?work_point_id=wp_abc123 \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.contazen.ro/v1/invoices?work_point_id=wp_abc123', {
+  headers: {
+    'Authorization': 'Bearer sk_live_YOUR_API_KEY'
+  }
+});
+```
+
+```php PHP
+$client = new Contazen\Client('sk_live_YOUR_API_KEY');
+
+// Configure default work point for all requests
+$client = Contazen\Client::create('sk_live_YOUR_API_KEY')
+    ->withWorkPointId('wp_abc123')
+    ->build();
+
+// Or specify per request
+$invoices = $client->invoices->list([
+    'work_point_id' => 'wp_abc123'
+]);
+```
+
+</CodeGroup>
+
+### Create Invoice for Specific Work Point
+
+When creating resources, specify the target work point:
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://api.contazen.ro/v1/invoices \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "work_point_id": "wp_abc123",
+    "client_id": "cli_xyz789",
+    "items": [...]
+  }'
+```
+
+```javascript JavaScript
+const invoice = await fetch('https://api.contazen.ro/v1/invoices', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer sk_live_YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    work_point_id: 'wp_abc123',
+    client_id: 'cli_xyz789',
+    items: [
+      {
+        description: 'Professional Services',
+        quantity: 1,
+        price: 1000
+      }
+    ]
+  })
+});
+```
+
+```php PHP
+$client = new Contazen\Client('sk_live_YOUR_API_KEY');
+
+$invoice = $client->invoices->create([
+    'work_point_id' => 'wp_abc123',
+    'client_id' => 'cli_xyz789',
+    'items' => [
+        [
+            'description' => 'Professional Services',
+            'quantity' => 1,
+            'price' => 1000
+        ]
+    ]
+]);
+```
+
+</CodeGroup>
+
+## Common Use Cases
+
+### Consolidated Reporting
+
+Generate reports across all business locations:
+
+```javascript
+async function getConsolidatedRevenue(apiKey, startDate, endDate) {
+  const response = await fetch('https://api.contazen.ro/v1/invoices', {
+    headers: {
+      'Authorization': `Bearer ${apiKey}`
+    }
+  });
+  
+  const invoices = await response.json();
+  
+  // Group by work point
+  const revenueByLocation = {};
+  invoices.data.forEach(invoice => {
+    const wpId = invoice.work_point_id;
+    if (!revenueByLocation[wpId]) {
+      revenueByLocation[wpId] = 0;
+    }
+    revenueByLocation[wpId] += invoice.total;
+  });
+  
+  return revenueByLocation;
+}
+```
+
+### Centralized Client Management
+
+Share client data across all locations:
+
+```javascript
+async function findClientAcrossAllLocations(apiKey, searchTerm) {
+  const response = await fetch(
+    `https://api.contazen.ro/v1/clients?search=${searchTerm}`,
+    {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`
+      }
+    }
+  );
+  
+  const clients = await response.json();
+  return clients.data; // Returns clients from all work points
+}
+```
+
+### Location-Specific Operations
+
+Process operations for a specific branch:
+
+```javascript
+class BranchManager {
+  constructor(apiKey, workPointId) {
+    this.apiKey = apiKey;
+    this.workPointId = workPointId;
+  }
+  
+  async createInvoice(clientId, items) {
+    const response = await fetch('https://api.contazen.ro/v1/invoices', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        work_point_id: this.workPointId,
+        client_id: clientId,
+        items: items
+      })
+    });
+    
+    return response.json();
+  }
+  
+  async getProducts() {
+    const response = await fetch(
+      `https://api.contazen.ro/v1/products?work_point_id=${this.workPointId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`
+        }
+      }
+    );
+    
+    return response.json();
+  }
+}
+
+// Usage
+const bucharest = new BranchManager('sk_live_KEY', 'wp_bucharest');
+const cluj = new BranchManager('sk_live_KEY', 'wp_cluj');
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Set Default Work Point" icon="location-dot">
+    Configure a default work point in your SDK client to avoid specifying it for every request:
+    
+    ```php
+    $client = Contazen\Client::create('sk_live_KEY')
+        ->withWorkPointId('wp_default')
+        ->build();
+    ```
+  </Accordion>
+  
+  <Accordion title="Cache Work Point List" icon="database">
+    Work points don't change frequently. Cache the list to reduce API calls:
+    
+    ```javascript
+    let workPointCache = null;
+    
+    async function getWorkPoints(apiKey) {
+      if (!workPointCache) {
+        const response = await fetch('https://api.contazen.ro/v1/settings', {
+          headers: { 'Authorization': `Bearer ${apiKey}` }
+        });
+        const data = await response.json();
+        workPointCache = data.work_points;
+      }
+      return workPointCache;
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Handle Work Point Permissions" icon="shield">
+    Always handle cases where a work point might not be accessible:
+    
+    ```javascript
+    try {
+      const invoice = await createInvoice(workPointId, data);
+    } catch (error) {
+      if (error.code === 'work_point_not_found') {
+        console.error('Work point not accessible or does not exist');
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Limitations
+
+- API keys can only access work points within the same parent company
+- Some operations may be restricted to specific work points based on permissions
+- Work point IDs are immutable and cannot be changed once created
+
+## Related Resources
+
+- [Authentication](/authentication) - Learn about API key management
+- [Settings API](/api-reference/endpoints/settings/get) - Retrieve work point information
+- [PHP SDK](/sdks#php) - SDK with built-in multi-work-point support
