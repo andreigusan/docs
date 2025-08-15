@@ -1,0 +1,222 @@
+---
+title: 'SDKs & Libraries'
+description: 'Official and community SDKs for the Contazen API'
+---
+
+## Official SDKs
+
+Speed up your integration with our official SDKs that provide idiomatic interfaces for your programming language of choice.
+
+<CardGroup cols={2}>
+  <Card
+    title="PHP SDK"
+    icon="php"
+    href="https://github.com/contazen/contazen-php-sdk"
+  >
+    Official PHP SDK for the Contazen API with full type support and modern PHP features
+  </Card>
+</CardGroup>
+
+## PHP SDK
+
+The official Contazen PHP SDK provides a simple and elegant way to interact with the Contazen API from your PHP applications.
+
+### Installation
+
+Install the SDK using Composer:
+
+```bash
+composer require contazen/contazen-php-sdk
+```
+
+### Quick Start
+
+```php
+<?php
+require_once 'vendor/autoload.php';
+
+use Contazen\ContazenClient;
+use Contazen\Resources\Invoice;
+use Contazen\Resources\Client;
+
+// Initialize the client
+$contazen = new ContazenClient('sk_live_YOUR_API_KEY');
+
+// Create a client
+$client = $contazen->clients()->create([
+    'type' => 'b2b',
+    'name' => 'Acme Corp SRL',
+    'cui' => 'RO12345678',
+    'address' => 'Str. Exemplu nr. 123',
+    'city' => 'București',
+    'email' => 'contact@acmecorp.ro'
+]);
+
+// Create an invoice
+$invoice = $contazen->invoices()->create([
+    'client_id' => $client->id,
+    'items' => [
+        [
+            'description' => 'Web Development Services',
+            'quantity' => 10,
+            'price' => 100.00,
+            'vat_rate' => 19
+        ]
+    ]
+]);
+
+// Send the invoice
+$contazen->invoices()->send($invoice->id, [
+    'email' => 'contact@acmecorp.ro',
+    'message' => 'Please find attached your invoice.'
+]);
+```
+
+### Features
+
+<AccordionGroup>
+  <Accordion title="Type Safety">
+    The SDK provides full type hints and PHPDoc annotations for better IDE support and code completion.
+  </Accordion>
+  
+  <Accordion title="Error Handling">
+    Built-in exception handling with specific exception types for different error scenarios:
+    
+    ```php
+    use Contazen\Exceptions\ApiException;
+    use Contazen\Exceptions\ValidationException;
+    use Contazen\Exceptions\AuthenticationException;
+    
+    try {
+        $invoice = $contazen->invoices()->create($data);
+    } catch (ValidationException $e) {
+        // Handle validation errors
+        $errors = $e->getErrors();
+    } catch (AuthenticationException $e) {
+        // Handle authentication errors
+    } catch (ApiException $e) {
+        // Handle general API errors
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Pagination Support">
+    Easy pagination through large datasets:
+    
+    ```php
+    // Get all invoices with automatic pagination
+    foreach ($contazen->invoices()->all() as $invoice) {
+        echo $invoice->number . PHP_EOL;
+    }
+    
+    // Manual pagination
+    $invoices = $contazen->invoices()->list([
+        'limit' => 50,
+        'starting_after' => 'inv_1a2b3c4d5e'
+    ]);
+    ```
+  </Accordion>
+  
+  <Accordion title="Webhook Handling">
+    Built-in webhook signature verification:
+    
+    ```php
+    use Contazen\Webhook;
+    
+    $payload = file_get_contents('php://input');
+    $signature = $_SERVER['HTTP_CONTAZEN_SIGNATURE'] ?? '';
+    
+    try {
+        $event = Webhook::constructEvent(
+            $payload,
+            $signature,
+            $webhookSecret
+        );
+        
+        // Handle the event
+        switch ($event->type) {
+            case 'invoice.paid':
+                $invoice = $event->data;
+                // Handle paid invoice
+                break;
+        }
+    } catch (\Exception $e) {
+        // Invalid signature
+        http_response_code(400);
+        exit();
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Available Resources
+
+The PHP SDK provides access to all Contazen API resources:
+
+- **Clients**: Create, retrieve, update, delete, and list clients
+- **Invoices**: Full invoice management including creation, sending, voiding, and PDF generation
+- **Products**: Manage your product catalog
+- **Settings**: Access account and company settings
+
+### Requirements
+
+- PHP 7.4 or higher
+- Composer
+- ext-curl
+- ext-json
+
+### Documentation & Support
+
+<CardGroup cols={2}>
+  <Card
+    title="GitHub Repository"
+    icon="github"
+    href="https://github.com/contazen/contazen-php-sdk"
+  >
+    View source code, report issues, and contribute
+  </Card>
+  <Card
+    title="API Reference"
+    icon="book"
+    href="/api-reference/introduction"
+  >
+    Complete API documentation
+  </Card>
+</CardGroup>
+
+## Community SDKs
+
+<Note>
+  Community SDKs are maintained by the community and may not always be up to date with the latest API changes. We recommend checking their documentation and testing thoroughly before using in production.
+</Note>
+
+If you've built an SDK for the Contazen API, please [contact us](mailto:contact@contazen.ro) to have it listed here.
+
+## Building Your Own SDK
+
+If an SDK doesn't exist for your language, you can build your own using our [OpenAPI specification](/contazen-api.openapi.yaml). Many languages have tools to generate client libraries from OpenAPI specs:
+
+- **JavaScript/TypeScript**: [openapi-generator](https://openapi-generator.tech/)
+- **Python**: [openapi-python-client](https://github.com/openapi-generators/openapi-python-client)
+- **Go**: [oapi-codegen](https://github.com/deepmap/oapi-codegen)
+- **Ruby**: [openapi_client](https://github.com/openapi-generators/openapi-ruby-client)
+- **Java**: [openapi-generator](https://openapi-generator.tech/)
+
+### Example: Generating a TypeScript Client
+
+```bash
+npm install @openapitools/openapi-generator-cli -g
+
+openapi-generator-cli generate \
+  -i https://api.contazen.ro/openapi.yaml \
+  -g typescript-axios \
+  -o ./contazen-sdk
+```
+
+## Need Help?
+
+If you need assistance with any SDK or have questions about integrating with the Contazen API:
+
+- Check our [API documentation](/api-reference/introduction)
+- Review the [authentication guide](/authentication)
+- Contact our support team at [contact@contazen.ro](mailto:contact@contazen.ro)

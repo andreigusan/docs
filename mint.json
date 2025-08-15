@@ -96,6 +96,7 @@
       "pages": [
         "introduction",
         "quickstart",
+        "sdks",
         "authentication",
         "postman-collection",
         "errors",
