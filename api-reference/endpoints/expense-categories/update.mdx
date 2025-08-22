@@ -1,0 +1,344 @@
+---
+title: 'Update Expense Category'
+openapi: 'PUT /expense-categories/{id}'
+description: 'Update an existing custom expense category'
+---
+
+## Overview
+
+The Update Expense Category endpoint allows you to modify existing custom expense categories. You can update the name, parent category, and visibility settings.
+
+**Important Limitations**:
+- You can only update **custom categories** that you created
+- **System default categories** cannot be modified via the API
+- Categories that belong to your firm only
+
+## Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The unique identifier of the expense category to update
+</ParamField>
+
+## Request Body
+
+All parameters are optional - only include the fields you want to update.
+
+<ParamField body="name" type="string">
+  The new name for the expense category
+</ParamField>
+
+<ParamField body="parent_id" type="integer">
+  New parent category ID. Use `0` to make it a root-level category, or specify an existing category ID to move it under that parent.
+</ParamField>
+
+<ParamField body="is_visible" type="boolean">
+  Whether the category should be visible and available for use when creating expenses
+</ParamField>
+
+## Validation Rules
+
+- **Name**: Must be non-empty if provided
+- **Parent Category**: Must exist and belong to your firm (if specified)
+- **Hierarchy**: Cannot create circular references or exceed 2-level depth
+- **Self-Reference**: A category cannot be its own parent
+- **System Categories**: Cannot update categories with `type: "system"`
+
+## Hierarchy Constraints
+
+- **Maximum Depth**: Categories can only be 2 levels deep (category → subcategory)
+- **Parent Validation**: Parent must be a root-level category (parent_id = 0)
+- **Circular Reference**: Prevents categories from referencing themselves or creating loops
+
+## Response
+
+<ResponseField name="category" type="object">
+  The updated expense category object
+
+  <Expandable title="Category Object Properties">
+    <ResponseField name="id" type="integer">
+      Unique identifier for the category
+    </ResponseField>
+    
+    <ResponseField name="name" type="string">
+      Updated category name
+    </ResponseField>
+    
+    <ResponseField name="parent_id" type="integer">
+      Updated parent category ID (0 for root categories)
+    </ResponseField>
+    
+    <ResponseField name="is_default" type="boolean">
+      Always `false` for custom categories
+    </ResponseField>
+    
+    <ResponseField name="is_visible" type="boolean">
+      Updated visibility setting
+    </ResponseField>
+    
+    <ResponseField name="type" type="string">
+      Always `"custom"` for user-created categories
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Success message confirming the category update
+</ResponseField>
+
+<RequestExample>
+
+```bash Update Name Only
+curl -X PUT "https://api.contazen.ro/v1/expense-categories/25" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Digital Marketing"
+  }'
+```
+
+```bash Change Parent Category
+curl -X PUT "https://api.contazen.ro/v1/expense-categories/25" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "parent_id": 5
+  }'
+```
+
+```bash Multiple Fields Update
+curl -X PUT "https://api.contazen.ro/v1/expense-categories/25" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Marketing & Advertising",
+    "parent_id": 0,
+    "is_visible": true
+  }'
+```
+
+```javascript Update Name Only
+const categoryId = 25;
+const updateData = {
+  name: "Digital Marketing"
+};
+
+const response = await fetch(`https://api.contazen.ro/v1/expense-categories/${categoryId}`, {
+  method: 'PUT',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify(updateData)
+});
+
+const data = await response.json();
+console.log('Updated category:', data.category);
+```
+
+```javascript Move to Different Parent
+const categoryId = 25;
+const updateData = {
+  parent_id: 5  // Move under category ID 5
+};
+
+const response = await fetch(`https://api.contazen.ro/v1/expense-categories/${categoryId}`, {
+  method: 'PUT',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify(updateData)
+});
+
+const data = await response.json();
+console.log('Category moved to parent:', data.category.parent_id);
+```
+
+```javascript Complete Update
+const categoryId = 25;
+const updateData = {
+  name: "Marketing & Advertising",
+  parent_id: 0,  // Make it root level
+  is_visible: true
+};
+
+const response = await fetch(`https://api.contazen.ro/v1/expense-categories/${categoryId}`, {
+  method: 'PUT',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify(updateData)
+});
+
+const data = await response.json();
+console.log('Updated category:', data.category);
+```
+
+```php Update Name Only
+$categoryId = 25;
+$updateData = [
+    'name' => 'Digital Marketing'
+];
+
+$curl = curl_init();
+
+curl_setopt_array($curl, [
+    CURLOPT_URL => "https://api.contazen.ro/v1/expense-categories/{$categoryId}",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_CUSTOMREQUEST => 'PUT',
+    CURLOPT_POSTFIELDS => json_encode($updateData),
+    CURLOPT_HTTPHEADER => [
+        'Authorization: Bearer YOUR_API_KEY',
+        'Content-Type: application/json'
+    ]
+]);
+
+$response = curl_exec($curl);
+$data = json_decode($response, true);
+curl_close($curl);
+
+echo 'Updated category: ' . $data['category']['name'];
+```
+
+```php Change Parent and Visibility
+$categoryId = 25;
+$updateData = [
+    'parent_id' => 5,
+    'is_visible' => false
+];
+
+$curl = curl_init();
+
+curl_setopt_array($curl, [
+    CURLOPT_URL => "https://api.contazen.ro/v1/expense-categories/{$categoryId}",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_CUSTOMREQUEST => 'PUT',
+    CURLOPT_POSTFIELDS => json_encode($updateData),
+    CURLOPT_HTTPHEADER => [
+        'Authorization: Bearer YOUR_API_KEY',
+        'Content-Type: application/json'
+    ]
+]);
+
+$response = curl_exec($curl);
+$data = json_decode($response, true);
+curl_close($curl);
+
+echo 'Category moved to parent ID: ' . $data['category']['parent_id'];
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 - Success
+{
+  "success": true,
+  "category": {
+    "id": 25,
+    "name": "Digital Marketing",
+    "parent_id": 0,
+    "is_default": false,
+    "is_visible": true,
+    "type": "custom"
+  },
+  "message": "Category updated successfully"
+}
+```
+
+```json 400 - Missing ID
+{
+  "success": false,
+  "error": {
+    "message": "Category ID is required",
+    "type": "invalid_request_error",
+    "code": "parameter_missing",
+    "param": "id"
+  }
+}
+```
+
+```json 404 - Not Found
+{
+  "success": false,
+  "error": {
+    "message": "Category not found",
+    "type": "invalid_request_error",
+    "code": "resource_missing",
+    "param": "id"
+  }
+}
+```
+
+```json 403 - System Category
+{
+  "success": false,
+  "error": {
+    "message": "Cannot update system category",
+    "type": "invalid_request_error",
+    "code": "system_category"
+  }
+}
+```
+
+```json 400 - Self Reference
+{
+  "success": false,
+  "error": {
+    "message": "Category cannot be its own parent",
+    "type": "invalid_request_error",
+    "code": "invalid_parent",
+    "param": "parent_id"
+  }
+}
+```
+
+```json 400 - Invalid Parent
+{
+  "success": false,
+  "error": {
+    "message": "Parent category not found",
+    "type": "invalid_request_error",
+    "code": "invalid_parent",
+    "param": "parent_id"
+  }
+}
+```
+
+```json 400 - Invalid Hierarchy
+{
+  "success": false,
+  "error": {
+    "message": "Cannot create subcategory under another subcategory",
+    "type": "invalid_request_error",
+    "code": "invalid_parent_level",
+    "param": "parent_id"
+  }
+}
+```
+
+```json 400 - Circular Reference
+{
+  "success": false,
+  "error": {
+    "message": "Circular reference detected",
+    "type": "invalid_request_error",
+    "code": "circular_reference",
+    "param": "parent_id"
+  }
+}
+```
+
+```json 403 - Permission Denied
+{
+  "success": false,
+  "error": {
+    "message": "You don't have permission to update categories",
+    "type": "invalid_request_error",
+    "code": "permission_denied"
+  }
+}
+```
+
+</ResponseExample>

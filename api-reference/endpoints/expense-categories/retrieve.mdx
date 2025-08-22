@@ -1,0 +1,281 @@
+---
+title: 'Retrieve Expense Category'
+openapi: 'GET /expense-categories/{id}'
+description: 'Get details of a specific expense category by its ID'
+---
+
+## Overview
+
+The Retrieve Expense Category endpoint allows you to get detailed information about a specific expense category by its ID. This works for both system default categories and your custom categories.
+
+## Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The unique identifier of the expense category to retrieve
+</ParamField>
+
+## Query Parameters
+
+<ParamField query="include_children" type="boolean" default="false">
+  When `true`, includes all subcategories under this category in the response (only applicable for parent categories)
+</ParamField>
+
+## Response
+
+<ResponseField name="category" type="object">
+  The expense category object with full details
+
+  <Expandable title="Category Object Properties">
+    <ResponseField name="id" type="integer">
+      Unique identifier for the category
+    </ResponseField>
+    
+    <ResponseField name="name" type="string">
+      Category name
+    </ResponseField>
+    
+    <ResponseField name="parent_id" type="integer">
+      Parent category ID (0 for root categories, null if no parent)
+    </ResponseField>
+    
+    <ResponseField name="is_default" type="boolean">
+      Whether this is a system default category
+    </ResponseField>
+    
+    <ResponseField name="is_visible" type="boolean">
+      Whether the category is visible and active for use
+    </ResponseField>
+    
+    <ResponseField name="type" type="string">
+      Category type: `"system"` for default categories, `"custom"` for user-created categories
+    </ResponseField>
+    
+    <ResponseField name="children" type="array">
+      Array of subcategory objects (only included when `include_children=true` and category has subcategories)
+      
+      <Expandable title="Child Category Properties">
+        <ResponseField name="id" type="integer">Child category ID</ResponseField>
+        <ResponseField name="name" type="string">Child category name</ResponseField>
+        <ResponseField name="parent_id" type="integer">Parent category ID</ResponseField>
+        <ResponseField name="is_default" type="boolean">Whether child is a system category</ResponseField>
+        <ResponseField name="is_visible" type="boolean">Whether child category is visible</ResponseField>
+        <ResponseField name="type" type="string">Child category type</ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Access Control
+
+- You can only retrieve categories that belong to your firm
+- Both system and custom categories are accessible
+- Category must exist and not be deleted
+
+<RequestExample>
+
+```bash Basic Retrieval
+curl -X GET "https://api.contazen.ro/v1/expense-categories/5" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```bash With Children
+curl -X GET "https://api.contazen.ro/v1/expense-categories/5?include_children=true" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```javascript Basic Retrieval
+const categoryId = 5;
+
+const response = await fetch(`https://api.contazen.ro/v1/expense-categories/${categoryId}`, {
+  method: 'GET',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  }
+});
+
+const data = await response.json();
+console.log('Category details:', data.category);
+```
+
+```javascript With Children
+const categoryId = 5;
+const params = new URLSearchParams({
+  include_children: 'true'
+});
+
+const response = await fetch(`https://api.contazen.ro/v1/expense-categories/${categoryId}?${params}`, {
+  method: 'GET',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  }
+});
+
+const data = await response.json();
+console.log('Category with children:', data.category);
+if (data.category.children) {
+  console.log('Subcategories:', data.category.children.length);
+}
+```
+
+```php Basic Retrieval
+$categoryId = 5;
+
+$curl = curl_init();
+
+curl_setopt_array($curl, [
+    CURLOPT_URL => "https://api.contazen.ro/v1/expense-categories/{$categoryId}",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => [
+        'Authorization: Bearer YOUR_API_KEY',
+        'Content-Type: application/json'
+    ]
+]);
+
+$response = curl_exec($curl);
+$data = json_decode($response, true);
+curl_close($curl);
+
+echo 'Category: ' . $data['category']['name'];
+echo ' (Type: ' . $data['category']['type'] . ')';
+```
+
+```php With Children
+$categoryId = 5;
+$params = http_build_query([
+    'include_children' => 'true'
+]);
+
+$curl = curl_init();
+
+curl_setopt_array($curl, [
+    CURLOPT_URL => "https://api.contazen.ro/v1/expense-categories/{$categoryId}?{$params}",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => [
+        'Authorization: Bearer YOUR_API_KEY',
+        'Content-Type: application/json'
+    ]
+]);
+
+$response = curl_exec($curl);
+$data = json_decode($response, true);
+curl_close($curl);
+
+echo 'Category: ' . $data['category']['name'] . "\n";
+if (isset($data['category']['children'])) {
+    echo 'Subcategories: ' . count($data['category']['children']) . "\n";
+    foreach ($data['category']['children'] as $child) {
+        echo '  - ' . $child['name'] . " (ID: {$child['id']})\n";
+    }
+}
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 - Success (Root Category)
+{
+  "success": true,
+  "category": {
+    "id": 5,
+    "name": "Marketing Expenses",
+    "parent_id": 0,
+    "is_default": false,
+    "is_visible": true,
+    "type": "custom"
+  }
+}
+```
+
+```json 200 - Success (With Children)
+{
+  "success": true,
+  "category": {
+    "id": 2,
+    "name": "Travel & Transportation",
+    "parent_id": 0,
+    "is_default": true,
+    "is_visible": true,
+    "type": "system",
+    "children": [
+      {
+        "id": 15,
+        "name": "Fuel",
+        "parent_id": 2,
+        "is_default": false,
+        "is_visible": true,
+        "type": "custom"
+      },
+      {
+        "id": 16,
+        "name": "Public Transport",
+        "parent_id": 2,
+        "is_default": false,
+        "is_visible": true,
+        "type": "custom"
+      },
+      {
+        "id": 17,
+        "name": "Hotel Accommodation",
+        "parent_id": 2,
+        "is_default": false,
+        "is_visible": true,
+        "type": "custom"
+      }
+    ]
+  }
+}
+```
+
+```json 200 - Success (Subcategory)
+{
+  "success": true,
+  "category": {
+    "id": 15,
+    "name": "Fuel",
+    "parent_id": 2,
+    "is_default": false,
+    "is_visible": true,
+    "type": "custom"
+  }
+}
+```
+
+```json 400 - Missing ID
+{
+  "success": false,
+  "error": {
+    "message": "Category ID is required",
+    "type": "invalid_request_error",
+    "code": "parameter_missing",
+    "param": "id"
+  }
+}
+```
+
+```json 404 - Not Found
+{
+  "success": false,
+  "error": {
+    "message": "Category not found",
+    "type": "invalid_request_error",
+    "code": "resource_missing",
+    "param": "id"
+  }
+}
+```
+
+```json 401 - Unauthorized
+{
+  "success": false,
+  "error": {
+    "message": "Unauthorized. API key is required.",
+    "type": "authentication_error",
+    "code": "api_key_required"
+  }
+}
+```
+
+</ResponseExample>

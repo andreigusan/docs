@@ -1,0 +1,122 @@
+---
+title: 'Adjust Product Stock'
+api: 'POST /products/{id}/stock'
+description: 'Adjust the stock level of a product'
+---
+
+## Overview
+
+This endpoint allows you to adjust the stock level of a product. Use positive values to increase stock (e.g., receiving inventory) and negative values to decrease stock (e.g., sales or shrinkage).
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The product's CzUid
+</ParamField>
+
+## Request Body
+
+<ParamField body="adjustment" type="number" required>
+  The stock adjustment amount. Positive values increase stock, negative values decrease stock.
+</ParamField>
+
+<ParamField body="reason" type="string">
+  Optional reason for the stock adjustment (e.g., "Inventory recount", "Damaged goods", "New shipment")
+</ParamField>
+
+<ParamField body="reference" type="string">
+  Optional reference number (e.g., purchase order number, invoice number)
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean">
+  Indicates if the request was successful
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      Product CzUid
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      Product name
+    </ResponseField>
+    <ResponseField name="previous_stock" type="number">
+      Stock level before adjustment
+    </ResponseField>
+    <ResponseField name="adjustment" type="number">
+      The adjustment amount applied
+    </ResponseField>
+    <ResponseField name="new_stock" type="number">
+      Stock level after adjustment
+    </ResponseField>
+    <ResponseField name="reason" type="string">
+      Reason for adjustment if provided
+    </ResponseField>
+    <ResponseField name="adjusted_at" type="string">
+      Timestamp of the adjustment
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Error Responses
+
+### 400 Bad Request
+- Invalid adjustment value (not a number)
+- Stock would go negative (if negative stock not allowed)
+
+### 404 Not Found
+- Product not found
+
+### 422 Unprocessable Entity
+- Product doesn't track stock
+- Adjustment would exceed maximum stock level
+
+<RequestExample>
+```bash
+# Increase stock by 50 units
+curl -X POST https://api.contazen.ro/v1/products/prd_abc123def/stock \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "adjustment": 50,
+    "reason": "New shipment received",
+    "reference": "PO-2024-089"
+  }'
+
+# Decrease stock by 10 units
+curl -X POST https://api.contazen.ro/v1/products/prd_abc123def/stock \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "adjustment": -10,
+    "reason": "Damaged items removed"
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+  "success": true,
+  "data": {
+    "id": "prd_abc123def",
+    "name": "Premium Widget",
+    "previous_stock": 100,
+    "adjustment": 50,
+    "new_stock": 150,
+    "reason": "New shipment received",
+    "adjusted_at": "2024-01-15T10:30:00Z"
+  }
+}
+```
+</ResponseExample>
+
+## Notes
+
+- Stock adjustments are logged for audit purposes
+- If your product doesn't track stock, this endpoint will return an error
+- Some accounts may have restrictions on negative stock levels
+- Stock adjustments may trigger notifications if stock falls below minimum levels
+- Consider using webhooks to track stock changes in real-time

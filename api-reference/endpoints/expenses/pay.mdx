@@ -1,0 +1,284 @@
+---
+title: 'Mark Expense as Paid'
+openapi: 'POST /expenses/{id}/pay'
+description: 'Mark an unpaid expense as paid by providing payment date and method'
+---
+
+## Overview
+
+The Mark Expense as Paid endpoint allows you to record payment for an unpaid expense. This is a specialized endpoint that specifically handles the payment workflow, updating the expense status and recording payment details.
+
+<Info>
+This endpoint is designed for expenses that are currently unpaid. If an expense is already paid, the request will fail with an appropriate error message.
+</Info>
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The CzUid of the expense to mark as paid
+</ParamField>
+
+## Request Body
+
+<ParamField body="paid_date" type="string" required format="date">
+  The date when the payment was made (YYYY-MM-DD format)
+</ParamField>
+
+<ParamField body="payment_type" type="integer" required>
+  The payment method used (1-7):
+  - `1` - Cash
+  - `2` - Bank transfer  
+  - `3` - Card
+  - `4` - Check
+  - `5` - Promissory note
+  - `6` - Other
+  - `7` - Compensation
+</ParamField>
+
+## Response
+
+<ResponseField name="expense" type="object">
+  The updated expense object reflecting the payment
+  
+  <Expandable title="Updated Expense Properties">
+    <ResponseField name="id" type="string">Expense CzUid</ResponseField>
+    <ResponseField name="is_paid" type="boolean">Now set to true</ResponseField>
+    <ResponseField name="paid_date" type="string">The payment date provided</ResponseField>
+    <ResponseField name="payment_type" type="object">
+      Payment type information
+      <Expandable title="Payment Type Object">
+        <ResponseField name="id" type="integer">Payment type ID</ResponseField>
+        <ResponseField name="name" type="string">Payment type name</ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="status" type="string">Updated to "paid"</ResponseField>
+    <ResponseField name="updated_at" type="string">New modification timestamp</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Success message confirming the payment has been recorded
+</ResponseField>
+
+## Business Logic
+
+When an expense is marked as paid:
+
+1. **Status Update**: The expense status changes from unpaid/overdue to paid
+2. **Payment Recording**: Payment date and method are permanently recorded
+3. **Audit Trail**: The payment action is logged for audit purposes
+4. **Notifications**: Internal notifications may be triggered (if configured)
+
+## Validation Rules
+
+- **Expense Exists**: The expense must exist and be owned by your firm
+- **Payment Status**: The expense must currently be unpaid (not already paid)
+- **Date Format**: Payment date must be in YYYY-MM-DD format
+- **Payment Type**: Must be a valid payment type ID (1-7)
+- **Date Logic**: Payment date should typically not be in the future
+
+## Error Scenarios
+
+### Already Paid
+If the expense is already marked as paid, you'll receive a 400 error. Use the [Update Expense](/api-reference/endpoints/expenses/update) endpoint if you need to change payment details for an already-paid expense.
+
+### Invalid Payment Type
+Payment types must match the predefined values. Check the payment_type parameter documentation for valid options.
+
+### Date Validation
+Payment dates must be valid dates in the correct format. The system may also validate that payment dates are reasonable (not too far in the past or future).
+
+<RequestExample>
+
+```bash cURL
+curl -X POST "https://api.contazen.ro/v1/expenses/exp_abc123/pay" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "paid_date": "2024-01-20",
+    "payment_type": 2
+  }'
+```
+
+```javascript JavaScript
+const expenseId = 'exp_abc123';
+const paymentData = {
+  paid_date: "2024-01-20",
+  payment_type: 2  // Bank transfer
+};
+
+const response = await fetch(`https://api.contazen.ro/v1/expenses/${expenseId}/pay`, {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify(paymentData)
+});
+
+const data = await response.json();
+if (data.success) {
+  console.log('Expense marked as paid:', data.expense.status);
+} else {
+  console.error('Payment failed:', data.error.message);
+}
+```
+
+```php PHP
+$expenseId = 'exp_abc123';
+$paymentData = [
+    'paid_date' => '2024-01-20',
+    'payment_type' => 2  // Bank transfer
+];
+
+$curl = curl_init();
+
+curl_setopt_array($curl, [
+    CURLOPT_URL => "https://api.contazen.ro/v1/expenses/{$expenseId}/pay",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_POST => true,
+    CURLOPT_POSTFIELDS => json_encode($paymentData),
+    CURLOPT_HTTPHEADER => [
+        'Authorization: Bearer YOUR_API_KEY',
+        'Content-Type: application/json'
+    ]
+]);
+
+$response = curl_exec($curl);
+$data = json_decode($response, true);
+curl_close($curl);
+
+if ($data['success']) {
+    echo 'Payment recorded: ' . $data['expense']['paid_date'];
+} else {
+    echo 'Error: ' . $data['error']['message'];
+}
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 - Success
+{
+  "success": true,
+  "expense": {
+    "id": "exp_abc123",
+    "reference": "INV-2024-001",
+    "description": "Office supplies purchase",
+    "amount": {
+      "total": "238.00",
+      "without_vat": "200.00",
+      "vat": "38.00",
+      "currency": "RON"
+    },
+    "account_amount": {
+      "total": "238.00",
+      "without_vat": "200.00",
+      "vat": "38.00",
+      "currency": "RON"
+    },
+    "vat_percent": 19,
+    "with_vat": true,
+    "date": "2024-01-15",
+    "due_date": "2024-02-15",
+    "paid_date": "2024-01-20",
+    "is_paid": true,
+    "payment_type": {
+      "id": 2,
+      "name": "Bank transfer"
+    },
+    "status": "paid",
+    "supplier_id": "sup_xyz789",
+    "category_id": 1,
+    "user_id": 1,
+    "created_at": "2024-01-15 10:30:00",
+    "updated_at": "2024-01-20 14:30:00"
+  },
+  "message": "Expense marked as paid successfully"
+}
+```
+
+```json 400 - Already Paid
+{
+  "success": false,
+  "error": {
+    "message": "Expense is already marked as paid",
+    "type": "invalid_request_error",
+    "code": "expense_already_paid"
+  }
+}
+```
+
+```json 400 - Validation Error
+{
+  "success": false,
+  "error": {
+    "message": "Validation failed",
+    "type": "invalid_request_error",
+    "code": "validation_error",
+    "fields": {
+      "paid_date": "Payment date is required",
+      "payment_type": "Invalid payment type. Must be between 1 and 7"
+    }
+  }
+}
+```
+
+```json 404 - Not Found
+{
+  "success": false,
+  "error": {
+    "message": "Expense not found",
+    "type": "invalid_request_error",
+    "code": "resource_missing",
+    "param": "id"
+  }
+}
+```
+
+</ResponseExample>
+
+## Use Cases
+
+### Bulk Payment Processing
+When processing multiple payments (e.g., from bank statements), you can use this endpoint to mark individual expenses as paid:
+
+```javascript JavaScript
+const payments = [
+  { expenseId: 'exp_abc123', date: '2024-01-20', type: 2 },
+  { expenseId: 'exp_def456', date: '2024-01-21', type: 1 },
+];
+
+for (const payment of payments) {
+  await markExpensePaid(payment.expenseId, payment.date, payment.type);
+}
+```
+
+### Integration with Banking APIs
+This endpoint is ideal for integrating with banking APIs that provide transaction data:
+
+```javascript JavaScript
+// Process bank transactions and mark corresponding expenses as paid
+bankTransactions.forEach(async (transaction) => {
+  const expense = findMatchingExpense(transaction);
+  if (expense) {
+    await markExpensePaid(expense.id, transaction.date, getPaymentType(transaction.type));
+  }
+});
+```
+
+### Manual Payment Entry
+For manual payment entry in accounting workflows:
+
+```javascript JavaScript
+const recordPayment = async (expenseId, paymentDetails) => {
+  try {
+    const result = await markExpensePaid(expenseId, paymentDetails.date, paymentDetails.method);
+    showSuccessMessage('Payment recorded successfully');
+    refreshExpenseList();
+  } catch (error) {
+    showErrorMessage('Failed to record payment: ' + error.message);
+  }
+};
+```

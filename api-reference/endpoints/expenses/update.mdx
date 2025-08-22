@@ -1,0 +1,305 @@
+---
+title: 'Update Expense'
+openapi: 'PUT /expenses/{id}'
+description: 'Update an existing expense with new information while preserving data integrity'
+---
+
+## Overview
+
+The Update Expense endpoint allows you to modify an existing expense record. You can update any field including supplier, category, amounts, payment status, and other details. The system will automatically recalculate VAT and currency conversions based on your changes.
+
+<Warning>
+Some expenses may not be modifiable if they are locked due to accounting periods or other business rules. The system will return an error if the expense cannot be modified.
+</Warning>
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The CzUid of the expense to update
+</ParamField>
+
+## Request Body
+
+All fields are optional - only include the fields you want to update. Existing values will be preserved for any fields not included in the request.
+
+<ParamField body="supplier_id" type="string">
+  Change the supplier for this expense (CzUid)
+</ParamField>
+
+<ParamField body="category_id" type="integer">
+  Change the expense category
+</ParamField>
+
+<ParamField body="reference" type="string">
+  Update the reference or invoice number
+</ParamField>
+
+<ParamField body="description" type="string">
+  Update the expense description
+</ParamField>
+
+<ParamField body="amount" type="number">
+  Update the expense amount (will trigger VAT recalculation)
+</ParamField>
+
+<ParamField body="with_vat" type="boolean">
+  Change whether the amount includes VAT
+</ParamField>
+
+<ParamField body="vat" type="integer">
+  Update the VAT percentage
+</ParamField>
+
+<ParamField body="currency" type="string">
+  Change the currency (will trigger currency conversion recalculation)
+</ParamField>
+
+<ParamField body="date" type="string" format="date">
+  Update the expense date (YYYY-MM-DD)
+</ParamField>
+
+<ParamField body="due_date" type="string" format="date">
+  Update the payment due date (YYYY-MM-DD)
+</ParamField>
+
+<ParamField body="is_paid" type="boolean">
+  Change the payment status
+</ParamField>
+
+<ParamField body="paid_date" type="string" format="date">
+  Update the payment date (only relevant if is_paid is true)
+</ParamField>
+
+<ParamField body="payment_type" type="integer">
+  Update the payment type ID (1-7, only relevant if is_paid is true):
+  - `1` - Cash
+  - `2` - Bank transfer  
+  - `3` - Card
+  - `4` - Check
+  - `5` - Promissory note
+  - `6` - Other
+  - `7` - Compensation
+</ParamField>
+
+<ParamField body="with_currency_exchange" type="boolean">
+  Enable or disable currency exchange
+</ParamField>
+
+<ParamField body="currency_to" type="string">
+  Update the target currency for exchange
+</ParamField>
+
+<ParamField body="currency_rate" type="number">
+  Update the exchange rate
+</ParamField>
+
+## Response
+
+Returns the updated expense object with all recalculated fields.
+
+<ResponseField name="expense" type="object">
+  The updated expense object with all details
+  
+  <Expandable title="Updated Expense Properties">
+    <ResponseField name="id" type="string">Expense CzUid (unchanged)</ResponseField>
+    <ResponseField name="reference" type="string">Updated reference</ResponseField>
+    <ResponseField name="description" type="string">Updated description</ResponseField>
+    <ResponseField name="amount" type="object">Recalculated amounts in expense currency</ResponseField>
+    <ResponseField name="account_amount" type="object">Recalculated amounts in base currency</ResponseField>
+    <ResponseField name="vat_percent" type="integer">Updated VAT percentage</ResponseField>
+    <ResponseField name="with_vat" type="boolean">Updated VAT inclusion flag</ResponseField>
+    <ResponseField name="date" type="string">Updated expense date</ResponseField>
+    <ResponseField name="due_date" type="string">Updated due date</ResponseField>
+    <ResponseField name="is_paid" type="boolean">Updated payment status</ResponseField>
+    <ResponseField name="paid_date" type="string">Updated payment date</ResponseField>
+    <ResponseField name="payment_type" type="object">Updated payment type info</ResponseField>
+    <ResponseField name="status" type="string">Recalculated expense status</ResponseField>
+    <ResponseField name="supplier_id" type="string">Updated supplier CzUid</ResponseField>
+    <ResponseField name="category_id" type="integer">Updated category ID</ResponseField>
+    <ResponseField name="user_id" type="integer">Original user ID (unchanged)</ResponseField>
+    <ResponseField name="currency_exchange" type="object">Updated currency exchange info</ResponseField>
+    <ResponseField name="created_at" type="string">Original creation time (unchanged)</ResponseField>
+    <ResponseField name="updated_at" type="string">New modification timestamp</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Success message confirming the update
+</ResponseField>
+
+## Automatic Recalculations
+
+When you update certain fields, the system automatically recalculates related values:
+
+### VAT Recalculation
+- **Amount changes**: VAT amounts are recalculated based on the new amount and VAT percentage
+- **VAT percentage changes**: All VAT-related amounts are recalculated
+- **with_vat changes**: The relationship between total and VAT-exclusive amounts is recalculated
+
+### Currency Conversion
+- **Currency changes**: Account amounts are recalculated using current exchange rates
+- **Exchange rate changes**: Account amounts are recalculated with the new rate
+
+### Status Updates
+- **Payment status**: The overall expense status is updated based on payment and due date information
+
+## Validation Rules
+
+- **Modifiability**: The expense must not be locked by accounting rules
+- **Supplier**: If changed, must exist and be owned by your firm
+- **Category**: If changed, must be a valid expense category
+- **Amount**: If changed, must be a positive number
+- **Dates**: Must be in YYYY-MM-DD format
+- **Payment consistency**: If marking as paid, payment_type is required
+
+<RequestExample>
+
+```bash cURL
+curl -X PUT "https://api.contazen.ro/v1/expenses/exp_abc123" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "Updated: Office supplies and equipment",
+    "amount": 285.00,
+    "is_paid": true,
+    "paid_date": "2024-01-20",
+    "payment_type": 2
+  }'
+```
+
+```javascript JavaScript
+const expenseId = 'exp_abc123';
+const updateData = {
+  description: "Updated: Office supplies and equipment",
+  amount: 285.00,
+  is_paid: true,
+  paid_date: "2024-01-20",
+  payment_type: 2
+};
+
+const response = await fetch(`https://api.contazen.ro/v1/expenses/${expenseId}`, {
+  method: 'PUT',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify(updateData)
+});
+
+const data = await response.json();
+console.log('Updated expense:', data.expense);
+```
+
+```php PHP
+$expenseId = 'exp_abc123';
+$updateData = [
+    'description' => 'Updated: Office supplies and equipment',
+    'amount' => 285.00,
+    'is_paid' => true,
+    'paid_date' => '2024-01-20',
+    'payment_type' => 2
+];
+
+$curl = curl_init();
+
+curl_setopt_array($curl, [
+    CURLOPT_URL => "https://api.contazen.ro/v1/expenses/{$expenseId}",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_CUSTOMREQUEST => 'PUT',
+    CURLOPT_POSTFIELDS => json_encode($updateData),
+    CURLOPT_HTTPHEADER => [
+        'Authorization: Bearer YOUR_API_KEY',
+        'Content-Type: application/json'
+    ]
+]);
+
+$response = curl_exec($curl);
+$data = json_decode($response, true);
+curl_close($curl);
+
+echo 'Updated expense status: ' . $data['expense']['status'];
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 - Success
+{
+  "success": true,
+  "expense": {
+    "id": "exp_abc123",
+    "reference": "INV-2024-001",
+    "description": "Updated: Office supplies and equipment",
+    "amount": {
+      "total": "285.00",
+      "without_vat": "239.50",
+      "vat": "45.50",
+      "currency": "RON"
+    },
+    "account_amount": {
+      "total": "285.00",
+      "without_vat": "239.50",
+      "vat": "45.50",
+      "currency": "RON"
+    },
+    "vat_percent": 19,
+    "with_vat": true,
+    "date": "2024-01-15",
+    "due_date": "2024-02-15",
+    "paid_date": "2024-01-20",
+    "is_paid": true,
+    "payment_type": {
+      "id": 2,
+      "name": "Bank transfer"
+    },
+    "status": "paid",
+    "supplier_id": "sup_xyz789",
+    "category_id": 1,
+    "user_id": 1,
+    "created_at": "2024-01-15 10:30:00",
+    "updated_at": "2024-01-20 14:45:00"
+  },
+  "message": "Expense updated successfully"
+}
+```
+
+```json 403 - Cannot Modify
+{
+  "success": false,
+  "error": {
+    "message": "Expense cannot be modified due to accounting restrictions",
+    "type": "invalid_request_error",
+    "code": "expense_locked"
+  }
+}
+```
+
+```json 400 - Validation Error
+{
+  "success": false,
+  "error": {
+    "message": "Validation failed",
+    "type": "invalid_request_error",
+    "code": "validation_error",
+    "fields": {
+      "amount": "Amount must be greater than 0",
+      "payment_type": "Payment type is required when expense is marked as paid"
+    }
+  }
+}
+```
+
+```json 404 - Not Found
+{
+  "success": false,
+  "error": {
+    "message": "Expense not found",
+    "type": "invalid_request_error",
+    "code": "resource_missing",
+    "param": "id"
+  }
+}
+```
+
+</ResponseExample>

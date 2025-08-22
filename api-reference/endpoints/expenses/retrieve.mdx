@@ -1,0 +1,294 @@
+---
+title: 'Retrieve Expense'
+openapi: 'GET /expenses/{id}'
+description: 'Get detailed information about a specific expense by its CzUid'
+---
+
+## Overview
+
+The Retrieve Expense endpoint allows you to get complete details about a specific expense record. You can optionally expand related data such as supplier information, category details, and user information.
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The CzUid of the expense to retrieve
+</ParamField>
+
+## Query Parameters
+
+<ParamField query="expand" type="string">
+  Comma-separated list of related data to include in the response:
+  - `supplier` - Include full supplier details instead of just the ID
+  - `category` - Include full category details instead of just the ID  
+  - `user` - Include user information for who created the expense
+</ParamField>
+
+## Response
+
+<ResponseField name="expense" type="object">
+  Complete expense object with all details
+  
+  <Expandable title="Expense Object Properties">
+    <ResponseField name="id" type="string">
+      Unique CzUid identifier for the expense
+    </ResponseField>
+    
+    <ResponseField name="reference" type="string">
+      Reference number or invoice number
+    </ResponseField>
+    
+    <ResponseField name="description" type="string">
+      Detailed description of the expense
+    </ResponseField>
+    
+    <ResponseField name="amount" type="object">
+      Original expense amounts in the expense currency
+      <Expandable title="Amount Object">
+        <ResponseField name="total" type="string">Total amount</ResponseField>
+        <ResponseField name="without_vat" type="string">Amount without VAT</ResponseField>
+        <ResponseField name="vat" type="string">VAT amount</ResponseField>
+        <ResponseField name="currency" type="string">Currency code</ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="account_amount" type="object">
+      Accounting amounts in the firm's base currency
+      <Expandable title="Account Amount Object">
+        <ResponseField name="total" type="string">Total amount in base currency</ResponseField>
+        <ResponseField name="without_vat" type="string">Amount without VAT in base currency</ResponseField>
+        <ResponseField name="vat" type="string">VAT amount in base currency</ResponseField>
+        <ResponseField name="currency" type="string">Base currency code</ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="vat_percent" type="integer">
+      VAT percentage applied to the expense
+    </ResponseField>
+    
+    <ResponseField name="with_vat" type="boolean">
+      Whether the original amount includes VAT
+    </ResponseField>
+    
+    <ResponseField name="date" type="string" format="date">
+      Expense date (YYYY-MM-DD)
+    </ResponseField>
+    
+    <ResponseField name="due_date" type="string" format="date">
+      Payment due date (YYYY-MM-DD)
+    </ResponseField>
+    
+    <ResponseField name="paid_date" type="string" format="date">
+      Payment date (null if not paid)
+    </ResponseField>
+    
+    <ResponseField name="is_paid" type="boolean">
+      Whether the expense has been paid
+    </ResponseField>
+    
+    <ResponseField name="payment_type" type="object">
+      Payment type information (null if not paid)
+      <Expandable title="Payment Type Object">
+        <ResponseField name="id" type="integer">Payment type ID</ResponseField>
+        <ResponseField name="name" type="string">Payment type name</ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="status" type="string">
+      Current expense status: `paid`, `unpaid`, `overdue`, or `registered`
+    </ResponseField>
+    
+    <ResponseField name="supplier_id" type="string">
+      Supplier CzUid (when not expanded)
+    </ResponseField>
+    
+    <ResponseField name="supplier" type="object">
+      Full supplier details (when expanded)
+      <Expandable title="Supplier Object">
+        <ResponseField name="id" type="string">Supplier CzUid</ResponseField>
+        <ResponseField name="name" type="string">Supplier name</ResponseField>
+        <ResponseField name="cui" type="string">Tax identification number</ResponseField>
+        <ResponseField name="rc" type="string">Trade register number</ResponseField>
+        <ResponseField name="address" type="string">Address</ResponseField>
+        <ResponseField name="city" type="string">City</ResponseField>
+        <ResponseField name="county" type="string">County</ResponseField>
+        <ResponseField name="country" type="string">Country</ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="category_id" type="integer">
+      Category ID (when not expanded)
+    </ResponseField>
+    
+    <ResponseField name="category" type="object">
+      Full category details (when expanded)
+      <Expandable title="Category Object">
+        <ResponseField name="id" type="integer">Category ID</ResponseField>
+        <ResponseField name="name" type="string">Category name</ResponseField>
+        <ResponseField name="parent_id" type="integer">Parent category ID (null for root categories)</ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="user_id" type="integer">
+      User ID (when not expanded)
+    </ResponseField>
+    
+    <ResponseField name="user" type="object">
+      User information (when expanded)
+      <Expandable title="User Object">
+        <ResponseField name="id" type="integer">User ID</ResponseField>
+        <ResponseField name="name" type="string">User name</ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="currency_exchange" type="object">
+      Currency exchange information (only if applicable)
+      <Expandable title="Currency Exchange Object">
+        <ResponseField name="from" type="string">Original currency</ResponseField>
+        <ResponseField name="to" type="string">Target currency</ResponseField>
+        <ResponseField name="rate" type="number">Exchange rate used</ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="attachment" type="object">
+      Attachment information (only if expense has an attachment)
+      <Expandable title="Attachment Object">
+        <ResponseField name="url" type="string">Download URL for the attachment</ResponseField>
+        <ResponseField name="type" type="string">File type (pdf or image)</ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="created_at" type="string" format="datetime">
+      When the expense was created
+    </ResponseField>
+    
+    <ResponseField name="updated_at" type="string" format="datetime">
+      When the expense was last modified
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Error Responses
+
+<ResponseField name="404 Not Found">
+  The expense with the specified ID does not exist or you don't have access to it
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -X GET "https://api.contazen.ro/v1/expenses/exp_abc123?expand=supplier,category,user" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json"
+```
+
+```javascript JavaScript
+const expenseId = 'exp_abc123';
+const expand = ['supplier', 'category', 'user'].join(',');
+
+const response = await fetch(`https://api.contazen.ro/v1/expenses/${expenseId}?expand=${expand}`, {
+  method: 'GET',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  }
+});
+
+const data = await response.json();
+console.log('Expense details:', data.expense);
+```
+
+```php PHP
+$expenseId = 'exp_abc123';
+$expand = 'supplier,category,user';
+
+$curl = curl_init();
+
+curl_setopt_array($curl, [
+    CURLOPT_URL => "https://api.contazen.ro/v1/expenses/{$expenseId}?expand={$expand}",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => [
+        'Authorization: Bearer YOUR_API_KEY',
+        'Content-Type: application/json'
+    ]
+]);
+
+$response = curl_exec($curl);
+$data = json_decode($response, true);
+curl_close($curl);
+
+print_r($data['expense']);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 - Success
+{
+  "success": true,
+  "expense": {
+    "id": "exp_abc123",
+    "reference": "INV-2024-001",
+    "description": "Office supplies purchase including paper, pens, and folders",
+    "amount": {
+      "total": "238.00",
+      "without_vat": "200.00",
+      "vat": "38.00",
+      "currency": "RON"
+    },
+    "account_amount": {
+      "total": "238.00",
+      "without_vat": "200.00",
+      "vat": "38.00",
+      "currency": "RON"
+    },
+    "vat_percent": 19,
+    "with_vat": true,
+    "date": "2024-01-15",
+    "due_date": "2024-02-15",
+    "paid_date": null,
+    "is_paid": false,
+    "payment_type": null,
+    "status": "unpaid",
+    "supplier": {
+      "id": "sup_xyz789",
+      "name": "Office Depot SRL",
+      "cui": "RO12345678",
+      "rc": "J40/1234/2020",
+      "address": "Str. Exemplu 123, Sector 1",
+      "city": "Bucharest",
+      "county": "Bucharest",
+      "country": "Romania"
+    },
+    "category": {
+      "id": 1,
+      "name": "Office Expenses",
+      "parent_id": null
+    },
+    "user": {
+      "id": 1,
+      "name": "John Doe"
+    },
+    "attachment": {
+      "url": "https://api.contazen.ro/v1/files/download/att_def456",
+      "type": "pdf"
+    },
+    "created_at": "2024-01-15 10:30:00",
+    "updated_at": "2024-01-15 10:30:00"
+  }
+}
+```
+
+```json 404 - Not Found
+{
+  "success": false,
+  "error": {
+    "message": "Expense not found",
+    "type": "invalid_request_error",
+    "code": "resource_missing",
+    "param": "id"
+  }
+}
+```
+
+</ResponseExample>

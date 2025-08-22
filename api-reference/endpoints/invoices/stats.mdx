@@ -1,0 +1,225 @@
+---
+title: 'Get Invoice Statistics'
+api: 'GET /invoices/stats'
+description: 'Get comprehensive invoice statistics and trends'
+---
+
+## Overview
+
+This endpoint provides detailed invoice statistics including counts by status, monthly trends, top clients, and revenue breakdown. Perfect for dashboards and analytics.
+
+## Query Parameters
+
+<ParamField query="year" type="integer">
+  Year for statistics (defaults to current year)
+</ParamField>
+
+<ParamField query="month" type="integer">
+  Specific month (1-12) for detailed monthly statistics
+</ParamField>
+
+<ParamField query="quarter" type="integer">
+  Specific quarter (1-4) for quarterly statistics
+</ParamField>
+
+<ParamField query="currency" type="string">
+  Filter statistics by specific currency
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean">
+  Indicates if the request was successful
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="overview" type="object">
+      Overall statistics summary
+      <Expandable title="properties">
+        <ResponseField name="total_invoices" type="integer">
+          Total number of invoices
+        </ResponseField>
+        <ResponseField name="total_revenue" type="number">
+          Total revenue across all currencies (in RON)
+        </ResponseField>
+        <ResponseField name="average_invoice_value" type="number">
+          Average invoice value
+        </ResponseField>
+        <ResponseField name="payment_rate" type="number">
+          Percentage of invoices paid (0-100)
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="by_status" type="object">
+      Invoice counts by status
+      <Expandable title="properties">
+        <ResponseField name="draft" type="integer">
+          Number of draft invoices
+        </ResponseField>
+        <ResponseField name="sent" type="integer">
+          Number of sent invoices
+        </ResponseField>
+        <ResponseField name="paid" type="integer">
+          Number of paid invoices
+        </ResponseField>
+        <ResponseField name="overdue" type="integer">
+          Number of overdue invoices
+        </ResponseField>
+        <ResponseField name="cancelled" type="integer">
+          Number of cancelled/voided invoices
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="monthly_trend" type="array">
+      Monthly revenue trend
+      <Expandable title="properties">
+        <ResponseField name="month" type="string">
+          Month name
+        </ResponseField>
+        <ResponseField name="month_number" type="integer">
+          Month number (1-12)
+        </ResponseField>
+        <ResponseField name="total" type="number">
+          Total revenue for the month
+        </ResponseField>
+        <ResponseField name="count" type="integer">
+          Number of invoices for the month
+        </ResponseField>
+        <ResponseField name="growth" type="number">
+          Percentage growth from previous month
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="top_clients" type="array">
+      Top 10 clients by revenue
+      <Expandable title="properties">
+        <ResponseField name="client_id" type="string">
+          Client CzUid
+        </ResponseField>
+        <ResponseField name="client_name" type="string">
+          Client name
+        </ResponseField>
+        <ResponseField name="total_revenue" type="number">
+          Total revenue from this client
+        </ResponseField>
+        <ResponseField name="invoice_count" type="integer">
+          Number of invoices for this client
+        </ResponseField>
+        <ResponseField name="percentage" type="number">
+          Percentage of total revenue
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="by_currency" type="array">
+      Revenue breakdown by currency
+      <Expandable title="properties">
+        <ResponseField name="currency" type="string">
+          Currency code
+        </ResponseField>
+        <ResponseField name="total" type="number">
+          Total amount in this currency
+        </ResponseField>
+        <ResponseField name="total_ron" type="number">
+          Total converted to RON
+        </ResponseField>
+        <ResponseField name="count" type="integer">
+          Number of invoices
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="payment_methods" type="object">
+      Breakdown by payment method
+      <Expandable title="properties">
+        <ResponseField name="bank_transfer" type="integer">
+          Number of bank transfer payments
+        </ResponseField>
+        <ResponseField name="cash" type="integer">
+          Number of cash payments
+        </ResponseField>
+        <ResponseField name="card" type="integer">
+          Number of card payments
+        </ResponseField>
+        <ResponseField name="other" type="integer">
+          Number of other payment methods
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+```bash
+curl -X GET https://api.contazen.ro/v1/invoices/stats \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -G -d "year=2024"
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+  "success": true,
+  "data": {
+    "overview": {
+      "total_invoices": 245,
+      "total_revenue": 458750.00,
+      "average_invoice_value": 1872.45,
+      "payment_rate": 87.5
+    },
+    "by_status": {
+      "draft": 5,
+      "sent": 25,
+      "paid": 195,
+      "overdue": 15,
+      "cancelled": 5
+    },
+    "monthly_trend": [
+      {
+        "month": "January",
+        "month_number": 1,
+        "total": 35000.00,
+        "count": 18,
+        "growth": 0
+      },
+      {
+        "month": "February",
+        "month_number": 2,
+        "total": 42000.00,
+        "count": 22,
+        "growth": 20.0
+      }
+    ],
+    "top_clients": [
+      {
+        "client_id": "cli_abc123def",
+        "client_name": "Tech Solutions SRL",
+        "total_revenue": 85000.00,
+        "invoice_count": 12,
+        "percentage": 18.5
+      }
+    ],
+    "by_currency": [
+      {
+        "currency": "RON",
+        "total": 385000.00,
+        "total_ron": 385000.00,
+        "count": 210
+      },
+      {
+        "currency": "EUR",
+        "total": 15000.00,
+        "total_ron": 73750.00,
+        "count": 35
+      }
+    ],
+    "payment_methods": {
+      "bank_transfer": 165,
+      "cash": 20,
+      "card": 10,
+      "other": 0
+    }
+  }
+}
+```
+</ResponseExample>

@@ -1,0 +1,138 @@
+---
+title: 'Get Invoice Totals'
+api: 'GET /invoices/totals'
+description: 'Get aggregated invoice totals for a specific period'
+---
+
+## Overview
+
+This endpoint returns aggregated invoice totals for a specific date range. The totals are grouped by currency and payment status, providing a comprehensive overview of your invoicing metrics.
+
+## Query Parameters
+
+<ParamField query="start_date" type="string" required>
+  Start date for the period in YYYY-MM-DD format
+</ParamField>
+
+<ParamField query="end_date" type="string" required>
+  End date for the period in YYYY-MM-DD format
+</ParamField>
+
+<ParamField query="currency" type="string">
+  Filter totals by specific currency code (e.g., RON, EUR, USD)
+</ParamField>
+
+<ParamField query="client_id" type="string">
+  Filter totals by specific client using their CzUid
+</ParamField>
+
+<ParamField query="series_id" type="string">
+  Filter totals by specific invoice series using its CzUid
+</ParamField>
+
+<ParamField query="is_paid" type="integer">
+  Filter by payment status (0 for unpaid, 1 for paid)
+</ParamField>
+
+<ParamField query="document_type" type="string">
+  Filter by document type (fiscal or proforma)
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean">
+  Indicates if the request was successful
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="totals" type="array">
+      Array of total objects grouped by currency
+      <Expandable title="properties">
+        <ResponseField name="currency" type="string">
+          Currency code
+        </ResponseField>
+        <ResponseField name="total_amount" type="number">
+          Total invoice amount in this currency
+        </ResponseField>
+        <ResponseField name="total_paid" type="number">
+          Total amount paid in this currency
+        </ResponseField>
+        <ResponseField name="total_unpaid" type="number">
+          Total amount unpaid in this currency
+        </ResponseField>
+        <ResponseField name="total_vat" type="number">
+          Total VAT amount in this currency
+        </ResponseField>
+        <ResponseField name="invoice_count" type="integer">
+          Number of invoices in this currency
+        </ResponseField>
+        <ResponseField name="paid_count" type="integer">
+          Number of paid invoices in this currency
+        </ResponseField>
+        <ResponseField name="unpaid_count" type="integer">
+          Number of unpaid invoices in this currency
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="period" type="object">
+      <Expandable title="properties">
+        <ResponseField name="start_date" type="string">
+          Start date of the period
+        </ResponseField>
+        <ResponseField name="end_date" type="string">
+          End date of the period
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="grand_total_ron" type="number">
+      Grand total converted to RON using current exchange rates
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+```bash
+curl -X GET https://api.contazen.ro/v1/invoices/totals \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -G -d "start_date=2024-01-01" \
+  -d "end_date=2024-12-31"
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+  "success": true,
+  "data": {
+    "totals": [
+      {
+        "currency": "RON",
+        "total_amount": 125000.00,
+        "total_paid": 95000.00,
+        "total_unpaid": 30000.00,
+        "total_vat": 21000.00,
+        "invoice_count": 45,
+        "paid_count": 35,
+        "unpaid_count": 10
+      },
+      {
+        "currency": "EUR",
+        "total_amount": 15000.00,
+        "total_paid": 12000.00,
+        "total_unpaid": 3000.00,
+        "total_vat": 2520.00,
+        "invoice_count": 8,
+        "paid_count": 6,
+        "unpaid_count": 2
+      }
+    ],
+    "period": {
+      "start_date": "2024-01-01",
+      "end_date": "2024-12-31"
+    },
+    "grand_total_ron": 199575.00
+  }
+}
+```
+</ResponseExample>

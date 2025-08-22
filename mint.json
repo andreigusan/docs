@@ -70,7 +70,9 @@
             "api-reference/endpoints/invoices/download-pdf",
             "api-reference/endpoints/invoices/void",
             "api-reference/endpoints/invoices/unvoid",
-            "api-reference/endpoints/invoices/delete"
+            "api-reference/endpoints/invoices/delete",
+            "api-reference/endpoints/invoices/totals",
+            "api-reference/endpoints/invoices/stats"
           ]
         },
         {
@@ -80,7 +82,41 @@
             "api-reference/endpoints/products/create",
             "api-reference/endpoints/products/retrieve",
             "api-reference/endpoints/products/update",
-            "api-reference/endpoints/products/delete"
+            "api-reference/endpoints/products/delete",
+            "api-reference/endpoints/products/stock"
+          ]
+        },
+        {
+          "group": "Expenses",
+          "pages": [
+            "api-reference/endpoints/expenses/list",
+            "api-reference/endpoints/expenses/create",
+            "api-reference/endpoints/expenses/retrieve",
+            "api-reference/endpoints/expenses/update",
+            "api-reference/endpoints/expenses/delete",
+            "api-reference/endpoints/expenses/pay",
+            "api-reference/endpoints/expenses/export",
+            "api-reference/endpoints/expenses/attachment"
+          ]
+        },
+        {
+          "group": "Expense Categories",
+          "pages": [
+            "api-reference/endpoints/expense-categories/list",
+            "api-reference/endpoints/expense-categories/create",
+            "api-reference/endpoints/expense-categories/retrieve",
+            "api-reference/endpoints/expense-categories/update",
+            "api-reference/endpoints/expense-categories/delete"
+          ]
+        },
+        {
+          "group": "Suppliers",
+          "pages": [
+            "api-reference/endpoints/suppliers/list",
+            "api-reference/endpoints/suppliers/create",
+            "api-reference/endpoints/suppliers/retrieve",
+            "api-reference/endpoints/suppliers/update",
+            "api-reference/endpoints/suppliers/delete"
           ]
         },
         {
@@ -98,6 +134,7 @@
         "quickstart",
         "sdks",
         "authentication",
+        "security",
         "postman-collection",
         "errors",
         "rate-limiting",
@@ -122,6 +159,9 @@
   },
   "api": {
     "baseUrl": "https://api.contazen.ro/v1",
+    "auth": {
+      "method": "bearer"
+    },
     "playground": {
       "mode": "show"
     }

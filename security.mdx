@@ -1,0 +1,137 @@
+---
+title: 'Security'
+description: 'Security best practices and features in the Contazen API'
+icon: 'shield'
+---
+
+## Overview
+
+The Contazen API implements multiple layers of security to protect your data and ensure safe integrations. This page outlines our security measures and best practices for using the API securely.
+
+## Authentication
+
+### API Keys
+- All API requests require authentication using Bearer tokens
+- API keys start with `sk_live_` for production and `sk_test_` for testing
+- Keys are tied to specific firms and have granular permissions
+- Never expose your API keys in client-side code or public repositories
+
+### Best Practices
+- Rotate your API keys regularly
+- Use environment variables to store keys
+- Implement IP whitelisting when possible
+- Monitor API usage for unusual patterns
+
+## File Upload Security
+
+When uploading attachments through endpoints like `/expenses/{id}/attachments`, we implement multiple validation layers:
+
+### File Validation
+1. **Extension Validation**: Only allowed file types (PDF, JPG, PNG) are accepted
+2. **MIME Type Verification**: Actual file content is validated against declared type
+3. **Content Header Validation**: Files are checked for proper magic bytes (e.g., PDFs must start with `%PDF`)
+4. **File Size Limits**: Maximum 10MB per file to prevent abuse
+
+### Path Security
+- **Secure Random Names**: Files are renamed using cryptographically secure random values
+- **Path Traversal Protection**: All paths are sanitized and validated
+- **Directory Isolation**: Files are stored in isolated directories per firm
+
+### Implementation Details
+```php
+// Secure file naming
+$filename = bin2hex(random_bytes(16)) . '.' . $extension;
+
+// MIME type validation
+$finfo = new finfo(FILEINFO_MIME_TYPE);
+$mimeType = $finfo->file($file['tmp_name']);
+
+// Content validation for PDFs
+$header = fread($handle, 5);
+if (substr($header, 0, 4) !== '%PDF') {
+    throw new Exception('Invalid PDF file');
+}
+```
+
+## Data Protection
+
+### Encryption
+- All API traffic must use HTTPS (TLS 1.2 or higher)
+- Sensitive data is encrypted at rest
+- Database connections use SSL certificates
+
+### Data Isolation
+- Multi-tenant architecture ensures complete data isolation between firms
+- Row-level security prevents cross-firm data access
+- CzUid system obscures internal IDs
+
+## Rate Limiting
+
+Rate limits protect against abuse and ensure service availability:
+
+- **1000 requests per hour** per API key
+- **100 create operations per minute** per API key
+- Rate limit headers included in all responses
+- Automatic backoff for exceeded limits
+
+## Input Validation
+
+All API inputs undergo strict validation:
+
+- **Type Checking**: Ensures correct data types
+- **Range Validation**: Numeric values checked against acceptable ranges
+- **Format Validation**: Dates, emails, and other formatted data verified
+- **SQL Injection Protection**: Parameterized queries prevent injection attacks
+- **XSS Prevention**: All output is properly escaped
+
+## Audit Logging
+
+We maintain comprehensive audit logs for security and compliance:
+
+- All API requests are logged with timestamps
+- Authentication attempts tracked
+- File uploads and modifications recorded
+- Logs retained for compliance periods
+
+## Compliance
+
+The Contazen API complies with:
+
+- **GDPR** (General Data Protection Regulation)
+- **Romanian e-Factura** requirements
+- **PCI DSS** for payment processing (where applicable)
+
+## Security Headers
+
+API responses include security headers:
+
+```
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+X-XSS-Protection: 1; mode=block
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+```
+
+## Reporting Security Issues
+
+If you discover a security vulnerability:
+
+1. **Do NOT** disclose it publicly
+2. Email security@contazen.ro with details
+3. Include steps to reproduce if possible
+4. We aim to respond within 24 hours
+
+## Security Checklist for Integrations
+
+When building integrations with our API:
+
+- [ ] Store API keys securely (environment variables, secrets management)
+- [ ] Use HTTPS for all requests
+- [ ] Implement proper error handling without exposing sensitive details
+- [ ] Validate all inputs before sending to API
+- [ ] Implement retry logic with exponential backoff
+- [ ] Monitor for unusual activity patterns
+- [ ] Keep dependencies and libraries up to date
+- [ ] Use the principle of least privilege for API key permissions
+- [ ] Implement proper logging without storing sensitive data
+- [ ] Regular security audits of your integration

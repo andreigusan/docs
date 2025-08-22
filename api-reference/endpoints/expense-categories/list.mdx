@@ -1,0 +1,235 @@
+---
+title: 'List Expense Categories'
+openapi: 'GET /expense-categories'
+description: 'Retrieve a list of expense categories for your firm, including both system and custom categories'
+---
+
+## Overview
+
+The List Expense Categories endpoint allows you to retrieve all expense categories available to your firm. This includes both system-provided default categories and custom categories you've created.
+
+Categories are hierarchical - you can have parent categories with subcategories (up to 2 levels deep).
+
+## Query Parameters
+
+<ParamField query="parent_id" type="integer">
+  Filter by parent category ID. Use `0` to get only root-level categories, or specify a parent ID to get its subcategories.
+</ParamField>
+
+<ParamField query="include_children" type="boolean" default="false">
+  When `true`, includes subcategories in the response for each parent category.
+</ParamField>
+
+<ParamField query="include_system" type="boolean" default="true">
+  When `true`, includes system default categories in the response. Set to `false` to get only custom categories.
+</ParamField>
+
+## Response
+
+<ResponseField name="categories" type="array">
+  Array of expense category objects
+
+  <Expandable title="Category Object Properties">
+    <ResponseField name="id" type="integer">
+      Unique identifier for the category
+    </ResponseField>
+    
+    <ResponseField name="name" type="string">
+      Category name
+    </ResponseField>
+    
+    <ResponseField name="parent_id" type="integer">
+      Parent category ID (0 for root categories, null if no parent)
+    </ResponseField>
+    
+    <ResponseField name="is_default" type="boolean">
+      Whether this is a system default category
+    </ResponseField>
+    
+    <ResponseField name="is_visible" type="boolean">
+      Whether the category is visible and active for use
+    </ResponseField>
+    
+    <ResponseField name="type" type="string">
+      Category type: `"system"` for default categories, `"custom"` for user-created categories
+    </ResponseField>
+    
+    <ResponseField name="children" type="array">
+      Array of subcategory objects (only included when `include_children=true`)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="total" type="integer">
+  Total number of categories returned
+</ResponseField>
+
+## Category Hierarchy
+
+- **Root Categories**: Categories with `parent_id = 0`
+- **Subcategories**: Categories with `parent_id > 0` 
+- **Maximum Depth**: 2 levels (category → subcategory)
+
+## System vs Custom Categories
+
+- **System Categories**: Pre-defined categories (`type: "system"`, `is_default: true`)
+- **Custom Categories**: User-created categories (`type: "custom"`, `is_default: false`)
+- System categories cannot be modified or deleted
+
+<RequestExample>
+
+```bash cURL
+curl -X GET "https://api.contazen.ro/v1/expense-categories" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```bash With Filters
+curl -X GET "https://api.contazen.ro/v1/expense-categories?parent_id=0&include_children=true&include_system=true" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.contazen.ro/v1/expense-categories', {
+  method: 'GET',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  }
+});
+
+const data = await response.json();
+console.log('Expense categories:', data.categories);
+```
+
+```javascript With Filters
+const params = new URLSearchParams({
+  parent_id: '0',
+  include_children: 'true',
+  include_system: 'true'
+});
+
+const response = await fetch(`https://api.contazen.ro/v1/expense-categories?${params}`, {
+  method: 'GET',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  }
+});
+
+const data = await response.json();
+console.log('Root categories with children:', data.categories);
+```
+
+```php PHP
+$curl = curl_init();
+
+curl_setopt_array($curl, [
+    CURLOPT_URL => 'https://api.contazen.ro/v1/expense-categories',
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => [
+        'Authorization: Bearer YOUR_API_KEY',
+        'Content-Type: application/json'
+    ]
+]);
+
+$response = curl_exec($curl);
+$data = json_decode($response, true);
+curl_close($curl);
+
+echo 'Found ' . $data['total'] . ' categories';
+```
+
+```php With Filters
+$params = http_build_query([
+    'parent_id' => 0,
+    'include_children' => 'true',
+    'include_system' => 'true'
+]);
+
+$curl = curl_init();
+
+curl_setopt_array($curl, [
+    CURLOPT_URL => 'https://api.contazen.ro/v1/expense-categories?' . $params,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => [
+        'Authorization: Bearer YOUR_API_KEY',
+        'Content-Type: application/json'
+    ]
+]);
+
+$response = curl_exec($curl);
+$data = json_decode($response, true);
+curl_close($curl);
+
+foreach ($data['categories'] as $category) {
+    echo $category['name'] . " (ID: " . $category['id'] . ")\n";
+}
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 - Success
+{
+  "success": true,
+  "categories": [
+    {
+      "id": 1,
+      "name": "Office Supplies",
+      "parent_id": 0,
+      "is_default": true,
+      "is_visible": true,
+      "type": "system"
+    },
+    {
+      "id": 2,
+      "name": "Travel & Transportation",
+      "parent_id": 0,
+      "is_default": true,
+      "is_visible": true,
+      "type": "system",
+      "children": [
+        {
+          "id": 15,
+          "name": "Fuel",
+          "parent_id": 2,
+          "is_default": false,
+          "is_visible": true,
+          "type": "custom"
+        },
+        {
+          "id": 16,
+          "name": "Public Transport",
+          "parent_id": 2,
+          "is_default": false,
+          "is_visible": true,
+          "type": "custom"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Marketing",
+      "parent_id": 0,
+      "is_default": false,
+      "is_visible": true,
+      "type": "custom"
+    }
+  ],
+  "total": 3
+}
+```
+
+```json 401 - Unauthorized
+{
+  "success": false,
+  "error": {
+    "message": "Unauthorized. API key is required.",
+    "type": "authentication_error",
+    "code": "api_key_required"
+  }
+}
+```
+
+</ResponseExample>

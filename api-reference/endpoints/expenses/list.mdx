@@ -1,0 +1,263 @@
+---
+title: 'List Expenses'
+openapi: 'GET /expenses'
+description: 'Retrieve a paginated list of expenses with comprehensive filtering options'
+---
+
+## Overview
+
+The List Expenses endpoint allows you to retrieve all expenses for your firm with advanced filtering, sorting, and pagination capabilities. You can filter by supplier, category, payment status, date ranges, and more.
+
+## Query Parameters
+
+<ParamField query="page" type="integer" default="1">
+  Page number for pagination (minimum: 1)
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="50">
+  Number of items per page (minimum: 1, maximum: 100)
+</ParamField>
+
+<ParamField query="supplier_id" type="string">
+  Filter by supplier using their CzUid
+</ParamField>
+
+<ParamField query="category_id" type="integer">
+  Filter by expense category ID. If the category has subcategories, all subcategories will be included
+</ParamField>
+
+<ParamField query="status" type="string">
+  Filter by payment status
+  - `paid` - Expense has been paid
+  - `unpaid` - Expense is not paid and not overdue
+  - `overdue` - Expense is past its due date
+  - `registered` - Expense is registered but not categorized as paid/unpaid
+</ParamField>
+
+<ParamField query="currency" type="string">
+  Filter by currency code (e.g., RON, EUR, USD)
+</ParamField>
+
+<ParamField query="payment_type" type="integer">
+  Filter by payment type ID (1-7):
+  - `1` - Cash
+  - `2` - Bank transfer  
+  - `3` - Card
+  - `4` - Check
+  - `5` - Promissory note
+  - `6` - Other
+  - `7` - Compensation
+</ParamField>
+
+<ParamField query="start_date" type="string" format="date">
+  Start date for filtering expenses (YYYY-MM-DD format)
+</ParamField>
+
+<ParamField query="end_date" type="string" format="date">
+  End date for filtering expenses (YYYY-MM-DD format)
+</ParamField>
+
+<ParamField query="sort" type="string" default="created_at">
+  Sort field:
+  - `created_at` - Sort by creation date
+  - `date` - Sort by expense date
+  - `due_date` - Sort by due date
+  - `amount` - Sort by amount
+</ParamField>
+
+<ParamField query="order" type="string" default="desc">
+  Sort order:
+  - `asc` - Ascending
+  - `desc` - Descending
+</ParamField>
+
+<ParamField query="expand" type="string">
+  Comma-separated list of related data to include:
+  - `supplier` - Include full supplier details
+  - `category` - Include full category details
+  - `user` - Include user information
+</ParamField>
+
+## Response
+
+<ResponseField name="expenses" type="array">
+  Array of expense objects
+  
+  <Expandable title="Expense Object Properties">
+    <ResponseField name="id" type="string">
+      Unique CzUid identifier for the expense
+    </ResponseField>
+    
+    <ResponseField name="reference" type="string">
+      Reference number or invoice number
+    </ResponseField>
+    
+    <ResponseField name="description" type="string">
+      Expense description
+    </ResponseField>
+    
+    <ResponseField name="amount" type="object">
+      Original expense amounts
+      <Expandable title="Amount Object">
+        <ResponseField name="total" type="string">Total amount</ResponseField>
+        <ResponseField name="without_vat" type="string">Amount without VAT</ResponseField>
+        <ResponseField name="vat" type="string">VAT amount</ResponseField>
+        <ResponseField name="currency" type="string">Currency code</ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="account_amount" type="object">
+      Accounting amounts (converted to firm's base currency)
+      <Expandable title="Account Amount Object">
+        <ResponseField name="total" type="string">Total amount in base currency</ResponseField>
+        <ResponseField name="without_vat" type="string">Amount without VAT in base currency</ResponseField>
+        <ResponseField name="vat" type="string">VAT amount in base currency</ResponseField>
+        <ResponseField name="currency" type="string">Base currency code</ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="vat_percent" type="integer">VAT percentage</ResponseField>
+    <ResponseField name="with_vat" type="boolean">Whether amount includes VAT</ResponseField>
+    <ResponseField name="date" type="string">Expense date (YYYY-MM-DD)</ResponseField>
+    <ResponseField name="due_date" type="string">Payment due date (YYYY-MM-DD)</ResponseField>
+    <ResponseField name="paid_date" type="string">Payment date (if paid)</ResponseField>
+    <ResponseField name="is_paid" type="boolean">Whether expense is paid</ResponseField>
+    <ResponseField name="payment_type" type="object">Payment type information</ResponseField>
+    <ResponseField name="status" type="string">Expense status (paid, unpaid, overdue, registered)</ResponseField>
+    <ResponseField name="supplier_id" type="string">Supplier CzUid (when not expanded)</ResponseField>
+    <ResponseField name="category_id" type="integer">Category ID (when not expanded)</ResponseField>
+    <ResponseField name="user_id" type="integer">User ID (when not expanded)</ResponseField>
+    <ResponseField name="created_at" type="string">Creation timestamp</ResponseField>
+    <ResponseField name="updated_at" type="string">Last update timestamp</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="pagination" type="object">
+  Pagination information
+  <Expandable title="Pagination Object">
+    <ResponseField name="page" type="integer">Current page number</ResponseField>
+    <ResponseField name="per_page" type="integer">Items per page</ResponseField>
+    <ResponseField name="total" type="integer">Total number of expenses</ResponseField>
+    <ResponseField name="total_pages" type="integer">Total number of pages</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="totals" type="object">
+  Summary totals for filtered expenses
+  <Expandable title="Totals Object">
+    <ResponseField name="amount" type="string">Total original amount</ResponseField>
+    <ResponseField name="amount_without_vat" type="string">Total amount without VAT</ResponseField>
+    <ResponseField name="vat" type="string">Total VAT amount</ResponseField>
+    <ResponseField name="account_amount" type="string">Total amount in base currency</ResponseField>
+    <ResponseField name="account_amount_without_vat" type="string">Total amount without VAT in base currency</ResponseField>
+    <ResponseField name="account_vat" type="string">Total VAT in base currency</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -X GET "https://api.contazen.ro/v1/expenses?page=1&per_page=20&status=unpaid&expand=supplier,category" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.contazen.ro/v1/expenses?page=1&per_page=20&status=unpaid&expand=supplier,category', {
+  method: 'GET',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  }
+});
+
+const data = await response.json();
+console.log(data.expenses);
+```
+
+```php PHP
+$curl = curl_init();
+
+curl_setopt_array($curl, [
+    CURLOPT_URL => 'https://api.contazen.ro/v1/expenses?page=1&per_page=20&status=unpaid&expand=supplier,category',
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => [
+        'Authorization: Bearer YOUR_API_KEY',
+        'Content-Type: application/json'
+    ]
+]);
+
+$response = curl_exec($curl);
+$data = json_decode($response, true);
+curl_close($curl);
+
+print_r($data['expenses']);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Response
+{
+  "success": true,
+  "expenses": [
+    {
+      "id": "exp_abc123",
+      "reference": "INV-2024-001",
+      "description": "Office supplies",
+      "amount": {
+        "total": "238.00",
+        "without_vat": "200.00",
+        "vat": "38.00",
+        "currency": "RON"
+      },
+      "account_amount": {
+        "total": "238.00",
+        "without_vat": "200.00",
+        "vat": "38.00",
+        "currency": "RON"
+      },
+      "vat_percent": 19,
+      "with_vat": true,
+      "date": "2024-01-15",
+      "due_date": "2024-02-15",
+      "paid_date": null,
+      "is_paid": false,
+      "payment_type": null,
+      "status": "unpaid",
+      "supplier": {
+        "id": "sup_xyz789",
+        "name": "Office Depot SRL",
+        "cui": "RO12345678",
+        "address": "Str. Exemplu 123",
+        "city": "Bucharest"
+      },
+      "category": {
+        "id": 1,
+        "name": "Office Expenses",
+        "parent_id": null
+      },
+      "user_id": 1,
+      "created_at": "2024-01-15 10:30:00",
+      "updated_at": "2024-01-15 10:30:00"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "per_page": 20,
+    "total": 150,
+    "total_pages": 8
+  },
+  "totals": {
+    "amount": "15750.00",
+    "amount_without_vat": "13235.29",
+    "vat": "2514.71",
+    "account_amount": "15750.00",
+    "account_amount_without_vat": "13235.29",
+    "account_vat": "2514.71"
+  }
+}
+```
+
+</ResponseExample>

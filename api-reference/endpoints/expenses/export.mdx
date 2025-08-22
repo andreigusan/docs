@@ -1,0 +1,305 @@
+---
+title: 'Export Expenses'
+openapi: 'GET /expenses/export'
+description: 'Export expense data to CSV or PDF format with all filtering options available'
+---
+
+## Overview
+
+The Export Expenses endpoint allows you to download your expense data in structured formats for external analysis, reporting, or archival purposes. You can export all expenses or use the same filtering options available in the List Expenses endpoint.
+
+<Info>
+This endpoint returns file data directly rather than JSON, so the response format differs from other API endpoints.
+</Info>
+
+## Query Parameters
+
+<ParamField query="format" type="string" default="csv">
+  Export format:
+  - `csv` - Comma-separated values file (Excel compatible)
+  - `pdf` - Portable Document Format (currently not implemented)
+</ParamField>
+
+### Filtering Parameters
+
+All filtering parameters from the [List Expenses](/api-reference/endpoints/expenses/list) endpoint are supported:
+
+<ParamField query="supplier_id" type="string">
+  Filter by supplier CzUid
+</ParamField>
+
+<ParamField query="category_id" type="integer">
+  Filter by expense category ID
+</ParamField>
+
+<ParamField query="status" type="string">
+  Filter by payment status (paid, unpaid, overdue, registered)
+</ParamField>
+
+<ParamField query="currency" type="string">
+  Filter by currency code
+</ParamField>
+
+<ParamField query="payment_type" type="integer">
+  Filter by payment type ID (1-7)
+</ParamField>
+
+<ParamField query="start_date" type="string" format="date">
+  Start date for filtering expenses
+</ParamField>
+
+<ParamField query="end_date" type="string" format="date">
+  End date for filtering expenses
+</ParamField>
+
+<ParamField query="sort" type="string" default="created_at">
+  Sort field (created_at, date, due_date, amount)
+</ParamField>
+
+<ParamField query="order" type="string" default="desc">
+  Sort order (asc, desc)
+</ParamField>
+
+## Response Formats
+
+### CSV Export (`format=csv`)
+
+The CSV export includes the following columns:
+
+| Column | Description |
+|--------|-------------|
+| Reference | Reference number or invoice number |
+| Date | Expense date |
+| Due Date | Payment due date |
+| Supplier | Supplier name |
+| Category | Expense category name |
+| Description | Expense description |
+| Amount | Total amount |
+| Currency | Currency code |
+| VAT % | VAT percentage |
+| Amount without VAT | Amount excluding VAT |
+| VAT Amount | VAT amount |
+| Status | Payment status (Paid/Unpaid) |
+| Payment Date | Date when expense was paid (if applicable) |
+| Payment Type | Payment method name (if paid) |
+
+**File characteristics:**
+- UTF-8 encoding with BOM for Excel compatibility
+- Comma-separated values
+- Headers included in first row
+- Filename format: `expenses_YYYY-MM-DD.csv`
+
+### PDF Export (`format=pdf`)
+
+<Warning>
+PDF export is currently not implemented. The endpoint will return a JSON error message indicating this feature is not yet available.
+</Warning>
+
+## Response Headers
+
+### CSV Export
+```
+Content-Type: text/csv; charset=utf-8
+Content-Disposition: attachment; filename="expenses_2024-01-20.csv"
+```
+
+### Error Responses
+```
+Content-Type: application/json
+```
+
+## Pagination Behavior
+
+Unlike the List Expenses endpoint, the export endpoint **does not use pagination**. It will export all expenses matching your filter criteria in a single file. Be mindful when exporting large datasets.
+
+## Use Cases
+
+### Accounting Integration
+Export expenses for import into accounting software:
+
+```javascript
+const exportUrl = 'https://api.contazen.ro/v1/expenses/export?format=csv&start_date=2024-01-01&end_date=2024-01-31';
+// Download and import into accounting system
+```
+
+### Monthly Reporting
+Generate monthly expense reports:
+
+```javascript
+const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+const exportUrl = `https://api.contazen.ro/v1/expenses/export?format=csv&start_date=${currentMonth}-01&end_date=${currentMonth}-31`;
+```
+
+### Audit Preparation
+Export all expenses for a specific period for auditing:
+
+```javascript
+const auditExport = 'https://api.contazen.ro/v1/expenses/export?format=csv&start_date=2024-01-01&end_date=2024-12-31&sort=date&order=asc';
+```
+
+### Category Analysis
+Export expenses by category for detailed analysis:
+
+```javascript
+const categoryExport = 'https://api.contazen.ro/v1/expenses/export?format=csv&category_id=1';
+```
+
+<RequestExample>
+
+```bash cURL
+# Download CSV export with filtering
+curl -X GET "https://api.contazen.ro/v1/expenses/export?format=csv&start_date=2024-01-01&end_date=2024-01-31&status=paid" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  --output expenses_january_2024.csv
+
+# Download all unpaid expenses
+curl -X GET "https://api.contazen.ro/v1/expenses/export?format=csv&status=unpaid" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  --output unpaid_expenses.csv
+```
+
+```javascript JavaScript
+const exportExpenses = async (filters = {}) => {
+  // Build query parameters
+  const params = new URLSearchParams({
+    format: 'csv',
+    ...filters
+  });
+
+  const response = await fetch(`https://api.contazen.ro/v1/expenses/export?${params}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': 'Bearer YOUR_API_KEY'
+    }
+  });
+
+  if (response.ok) {
+    // Get filename from Content-Disposition header
+    const contentDisposition = response.headers.get('Content-Disposition');
+    const filename = contentDisposition 
+      ? contentDisposition.split('filename=')[1].replace(/"/g, '')
+      : 'expenses_export.csv';
+
+    // Get the CSV content
+    const csvContent = await response.text();
+    
+    // Create download link (browser environment)
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  } else {
+    const error = await response.json();
+    throw new Error(error.error.message);
+  }
+};
+
+// Usage examples
+exportExpenses({ start_date: '2024-01-01', end_date: '2024-01-31' });
+exportExpenses({ status: 'unpaid', currency: 'RON' });
+exportExpenses({ supplier_id: 'sup_abc123' });
+```
+
+```php PHP
+$filters = [
+    'format' => 'csv',
+    'start_date' => '2024-01-01',
+    'end_date' => '2024-01-31',
+    'status' => 'paid'
+];
+
+$url = 'https://api.contazen.ro/v1/expenses/export?' . http_build_query($filters);
+
+$curl = curl_init();
+
+curl_setopt_array($curl, [
+    CURLOPT_URL => $url,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => [
+        'Authorization: Bearer YOUR_API_KEY'
+    ]
+]);
+
+$response = curl_exec($curl);
+$httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+$contentType = curl_getinfo($curl, CURLINFO_CONTENT_TYPE);
+
+if ($httpCode == 200 && strpos($contentType, 'text/csv') !== false) {
+    // Success - save CSV file
+    $filename = 'expenses_export_' . date('Y-m-d') . '.csv';
+    file_put_contents($filename, $response);
+    echo "Export saved to: {$filename}";
+} else {
+    // Error response
+    $error = json_decode($response, true);
+    echo "Export failed: " . $error['error']['message'];
+}
+
+curl_close($curl);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```csv CSV File Content
+Reference,Date,Due Date,Supplier,Category,Description,Amount,Currency,VAT %,Amount without VAT,VAT Amount,Status,Payment Date,Payment Type
+INV-2024-001,2024-01-15,2024-02-15,Office Depot SRL,Office Expenses,Office supplies purchase,238.00,RON,19,200.00,38.00,Paid,2024-01-20,Bank transfer
+INV-2024-002,2024-01-16,2024-02-16,Marketing Pro,Marketing & Advertising,Social media campaign,1190.00,RON,19,1000.00,190.00,Unpaid,,
+EXP-2024-003,2024-01-17,2024-02-17,Travel Agency,Travel & Transportation,Business trip accommodation,595.00,RON,9,545.87,49.13,Paid,2024-01-25,Card
+```
+
+```json Error Response (Invalid Format)
+{
+  "success": false,
+  "error": {
+    "message": "Invalid format. Use csv or pdf",
+    "type": "invalid_request_error",
+    "code": "invalid_format"
+  }
+}
+```
+
+```json Error Response (PDF Not Implemented)
+{
+  "success": false,
+  "error": {
+    "message": "PDF export not yet implemented",
+    "type": "not_implemented",
+    "code": "feature_not_available"
+  }
+}
+```
+
+</ResponseExample>
+
+## Best Practices
+
+### File Management
+1. **Naming conventions**: Use descriptive filenames with dates
+2. **Storage**: Store exported files securely with appropriate access controls
+3. **Cleanup**: Regularly clean up old export files to save storage space
+
+### Data Integrity
+1. **Filtering**: Use appropriate filters to export only needed data
+2. **Sorting**: Sort by relevant fields for easier analysis
+3. **Validation**: Verify exported data matches your expectations
+
+### Performance Considerations
+1. **Large exports**: For very large datasets, consider using date ranges to split exports
+2. **Scheduling**: Schedule exports during off-peak hours for better performance
+3. **Monitoring**: Monitor export file sizes and processing times
+
+### Security
+1. **Access control**: Ensure only authorized users can export sensitive financial data
+2. **Audit logging**: Log export activities for security auditing
+3. **Data handling**: Follow your organization's data protection policies for exported files
+
+### Integration Tips
+1. **Automation**: Automate regular exports for recurring reporting needs
+2. **File processing**: Build workflows to automatically process exported CSV files
+3. **Error handling**: Implement proper error handling for failed exports
+4. **Notifications**: Set up notifications for successful or failed export operations

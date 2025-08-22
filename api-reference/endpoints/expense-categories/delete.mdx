@@ -1,0 +1,285 @@
+---
+title: 'Delete Expense Category'
+openapi: 'DELETE /expense-categories/{id}'
+description: 'Delete a custom expense category from your firm'
+---
+
+## Overview
+
+The Delete Expense Category endpoint allows you to permanently remove custom expense categories that are no longer needed. This operation has strict safety checks to prevent data loss.
+
+**Important Restrictions**:
+- You can only delete **custom categories** that you created
+- **System default categories** cannot be deleted
+- Categories must have **no expenses** assigned to them
+- Categories must have **no subcategories** under them
+- Categories must belong to your firm
+
+## Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The unique identifier of the expense category to delete
+</ParamField>
+
+## Safety Checks
+
+Before deleting a category, the system performs several validation checks:
+
+1. **System Protection**: Cannot delete system/default categories
+2. **Usage Check**: Cannot delete categories that have expenses assigned
+3. **Hierarchy Check**: Cannot delete categories that have subcategories
+4. **Ownership**: Can only delete categories belonging to your firm
+
+## Response
+
+<ResponseField name="message" type="string">
+  Success message confirming the category deletion
+</ResponseField>
+
+<ResponseField name="id" type="integer">
+  The ID of the deleted category
+</ResponseField>
+
+## Pre-Deletion Checklist
+
+Before attempting to delete a category:
+
+1. **Move or delete all expenses** using this category
+2. **Delete or reassign all subcategories** under this category
+3. **Confirm it's a custom category** (not a system default)
+
+<RequestExample>
+
+```bash Delete Category
+curl -X DELETE "https://api.contazen.ro/v1/expense-categories/25" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```javascript Delete Category
+const categoryId = 25;
+
+const response = await fetch(`https://api.contazen.ro/v1/expense-categories/${categoryId}`, {
+  method: 'DELETE',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  }
+});
+
+const data = await response.json();
+if (data.success) {
+  console.log('Category deleted:', data.message);
+} else {
+  console.error('Delete failed:', data.error.message);
+}
+```
+
+```javascript Safe Delete with Checks
+const categoryId = 25;
+
+// First, check if category can be deleted
+const checkResponse = await fetch(`https://api.contazen.ro/v1/expense-categories/${categoryId}`, {
+  method: 'GET',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  }
+});
+
+const categoryData = await checkResponse.json();
+if (categoryData.category.type === 'system') {
+  console.error('Cannot delete system category');
+  return;
+}
+
+// Proceed with deletion
+const deleteResponse = await fetch(`https://api.contazen.ro/v1/expense-categories/${categoryId}`, {
+  method: 'DELETE',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  }
+});
+
+const result = await deleteResponse.json();
+console.log('Delete result:', result);
+```
+
+```php Delete Category
+$categoryId = 25;
+
+$curl = curl_init();
+
+curl_setopt_array($curl, [
+    CURLOPT_URL => "https://api.contazen.ro/v1/expense-categories/{$categoryId}",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_CUSTOMREQUEST => 'DELETE',
+    CURLOPT_HTTPHEADER => [
+        'Authorization: Bearer YOUR_API_KEY',
+        'Content-Type: application/json'
+    ]
+]);
+
+$response = curl_exec($curl);
+$data = json_decode($response, true);
+curl_close($curl);
+
+if ($data['success']) {
+    echo 'Category deleted: ' . $data['message'];
+} else {
+    echo 'Delete failed: ' . $data['error']['message'];
+}
+```
+
+```php Safe Delete with Validation
+$categoryId = 25;
+
+// First check the category type
+$curl = curl_init();
+curl_setopt_array($curl, [
+    CURLOPT_URL => "https://api.contazen.ro/v1/expense-categories/{$categoryId}",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => [
+        'Authorization: Bearer YOUR_API_KEY',
+        'Content-Type: application/json'
+    ]
+]);
+
+$response = curl_exec($curl);
+$categoryData = json_decode($response, true);
+
+if ($categoryData['category']['type'] === 'system') {
+    echo 'Error: Cannot delete system category';
+    exit;
+}
+
+// Proceed with deletion
+curl_setopt_array($curl, [
+    CURLOPT_URL => "https://api.contazen.ro/v1/expense-categories/{$categoryId}",
+    CURLOPT_CUSTOMREQUEST => 'DELETE'
+]);
+
+$deleteResponse = curl_exec($curl);
+$deleteData = json_decode($deleteResponse, true);
+curl_close($curl);
+
+if ($deleteData['success']) {
+    echo 'Successfully deleted category ID: ' . $deleteData['id'];
+} else {
+    echo 'Delete failed: ' . $deleteData['error']['message'];
+    if (isset($deleteData['error']['expense_count'])) {
+        echo ' (Has ' . $deleteData['error']['expense_count'] . ' expenses)';
+    }
+}
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 - Success
+{
+  "success": true,
+  "message": "Category deleted successfully",
+  "id": 25
+}
+```
+
+```json 400 - Missing ID
+{
+  "success": false,
+  "error": {
+    "message": "Category ID is required",
+    "type": "invalid_request_error",
+    "code": "parameter_missing",
+    "param": "id"
+  }
+}
+```
+
+```json 404 - Not Found
+{
+  "success": false,
+  "error": {
+    "message": "Category not found",
+    "type": "invalid_request_error",
+    "code": "resource_missing",
+    "param": "id"
+  }
+}
+```
+
+```json 403 - System Category
+{
+  "success": false,
+  "error": {
+    "message": "Cannot delete system category",
+    "type": "invalid_request_error",
+    "code": "system_category"
+  }
+}
+```
+
+```json 400 - Has Expenses
+{
+  "success": false,
+  "error": {
+    "message": "Category has expenses assigned and cannot be deleted",
+    "type": "invalid_request_error",
+    "code": "category_in_use",
+    "expense_count": 15
+  }
+}
+```
+
+```json 400 - Has Subcategories
+{
+  "success": false,
+  "error": {
+    "message": "Category has subcategories and cannot be deleted",
+    "type": "invalid_request_error",
+    "code": "category_has_children",
+    "subcategory_count": 3
+  }
+}
+```
+
+```json 403 - Permission Denied
+{
+  "success": false,
+  "error": {
+    "message": "You don't have permission to delete categories",
+    "type": "invalid_request_error",
+    "code": "permission_denied"
+  }
+}
+```
+
+```json 500 - Delete Failed
+{
+  "success": false,
+  "error": {
+    "message": "Failed to delete category",
+    "type": "api_error",
+    "code": "delete_failed"
+  }
+}
+```
+
+</ResponseExample>
+
+## Best Practices
+
+### Before Deleting Categories
+
+1. **Check Dependencies**: Use the List Expenses API to find expenses using this category
+2. **Reassign Expenses**: Move expenses to different categories before deletion
+3. **Handle Subcategories**: Delete or reassign all subcategories first
+4. **Backup Important Data**: Export expense data if the category contains historical records
+
+### Alternative to Deletion
+
+Instead of deleting categories, consider:
+- **Hide Categories**: Set `is_visible: false` to hide unused categories
+- **Rename Categories**: Update the name for repurposing
+- **Archive Approach**: Keep historical categories for reporting consistency
