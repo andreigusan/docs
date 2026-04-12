@@ -1,0 +1,194 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Contazen API Documentation",
+  "colors": {
+    "primary": "#0f9d59",
+    "light": "#07C983",
+    "dark": "#0f9d59"
+  },
+  "favicon": "/favicon.svg",
+  "navigation": {
+    "versions": [
+      {
+        "version": "v1",
+        "tabs": [
+          {
+            "tab": "Documentation",
+            "groups": [
+              {
+                "group": "Getting Started",
+                "pages": [
+                  "introduction",
+                  "quickstart",
+                  "sdks",
+                  "authentication",
+                  "security",
+                  "postman-collection",
+                  "errors",
+                  "rate-limiting",
+                  "versioning"
+                ]
+              },
+              {
+                "group": "Core Concepts",
+                "pages": [
+                  "concepts/multi-work-point",
+                  "concepts/pagination",
+                  "concepts/expanding-objects",
+                  "concepts/localization",
+                  "concepts/invoice-lifecycle",
+                  "concepts/efactura"
+                ]
+              }
+            ]
+          },
+          {
+            "tab": "API Reference",
+            "groups": [
+              {
+                "group": "API Reference",
+                "pages": [
+                  "api-reference/introduction",
+                  "api-reference/testing",
+                  {
+                    "group": "Clients",
+                    "pages": [
+                      "api-reference/endpoints/clients/list",
+                      "api-reference/endpoints/clients/create",
+                      "api-reference/endpoints/clients/retrieve",
+                      "api-reference/endpoints/clients/update",
+                      "api-reference/endpoints/clients/delete"
+                    ]
+                  },
+                  {
+                    "group": "Invoices",
+                    "pages": [
+                      "api-reference/endpoints/invoices/list",
+                      "api-reference/endpoints/invoices/create",
+                      "api-reference/endpoints/invoices/retrieve",
+                      "api-reference/endpoints/invoices/send",
+                      "api-reference/endpoints/invoices/send-to-spv",
+                      "api-reference/endpoints/invoices/pay",
+                      "api-reference/endpoints/invoices/download-pdf",
+                      "api-reference/endpoints/invoices/void",
+                      "api-reference/endpoints/invoices/unvoid",
+                      "api-reference/endpoints/invoices/delete",
+                      "api-reference/endpoints/invoices/totals",
+                      "api-reference/endpoints/invoices/stats"
+                    ]
+                  },
+                  {
+                    "group": "Products",
+                    "pages": [
+                      "api-reference/endpoints/products/list",
+                      "api-reference/endpoints/products/create",
+                      "api-reference/endpoints/products/retrieve",
+                      "api-reference/endpoints/products/update",
+                      "api-reference/endpoints/products/delete",
+                      "api-reference/endpoints/products/stock"
+                    ]
+                  },
+                  {
+                    "group": "Expenses",
+                    "pages": [
+                      "api-reference/endpoints/expenses/list",
+                      "api-reference/endpoints/expenses/create",
+                      "api-reference/endpoints/expenses/retrieve",
+                      "api-reference/endpoints/expenses/update",
+                      "api-reference/endpoints/expenses/delete",
+                      "api-reference/endpoints/expenses/pay",
+                      "api-reference/endpoints/expenses/export",
+                      "api-reference/endpoints/expenses/attachment"
+                    ]
+                  },
+                  {
+                    "group": "Expense Categories",
+                    "pages": [
+                      "api-reference/endpoints/expense-categories/list",
+                      "api-reference/endpoints/expense-categories/create",
+                      "api-reference/endpoints/expense-categories/retrieve",
+                      "api-reference/endpoints/expense-categories/update",
+                      "api-reference/endpoints/expense-categories/delete"
+                    ]
+                  },
+                  {
+                    "group": "Suppliers",
+                    "pages": [
+                      "api-reference/endpoints/suppliers/list",
+                      "api-reference/endpoints/suppliers/create",
+                      "api-reference/endpoints/suppliers/retrieve",
+                      "api-reference/endpoints/suppliers/update",
+                      "api-reference/endpoints/suppliers/delete"
+                    ]
+                  },
+                  {
+                    "group": "Settings",
+                    "pages": [
+                      "api-reference/endpoints/settings/get"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "logo": {
+    "light": "https://docs.contazen.ro/logo/light.svg",
+    "dark": "https://docs.contazen.ro/logo/dark.svg"
+  },
+  "api": {
+    "openapi": "contazen-api.openapi.yaml",
+    "playground": {
+      "display": "interactive"
+    },
+    "mdx": {
+      "server": "https://api.contazen.ro/v1",
+      "auth": {
+        "method": "bearer"
+      }
+    }
+  },
+  "appearance": {
+    "default": "light"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Support",
+        "href": "mailto:contact@contazen.ro"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Dashboard",
+      "href": "https://app.contazen.ro"
+    }
+  },
+  "search": {
+    "prompt": "Search documentation..."
+  },
+  "seo": {
+    "metatags": {
+      "og:title": "Contazen API Documentation",
+      "og:description": "Build powerful integrations with the Contazen invoicing platform",
+      "og:image": "https://contazen.ro/og-image.png"
+    },
+    "indexing": "navigable"
+  },
+  "footer": {
+    "socials": {
+      "x": "https://x.com/contazen",
+      "linkedin": "https://www.linkedin.com/company/contazen"
+    }
+  },
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/introduction"
+    }
+  ]
+}

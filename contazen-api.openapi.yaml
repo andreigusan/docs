@@ -1603,7 +1603,125 @@ components:
             reset_at:
               type: string
               format: date-time
-          
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique payment identifier (CzUid)
+        object:
+          type: string
+          example: payment
+        amount:
+          type: number
+          description: Payment amount
+        currency:
+          type: string
+        date:
+          type: string
+          format: date
+          nullable: true
+        type:
+          type: string
+          enum: [receipt, bank_order, card, cheque, promissory_note, other, fiscal_receipt]
+        type_description:
+          type: string
+          description: Localized payment type description
+        reference:
+          type: string
+          nullable: true
+          description: Reference number
+        invoice:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+            number:
+              type: string
+            total:
+              type: number
+            currency:
+              type: string
+        client:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+        created_at:
+          type: integer
+          description: Unix timestamp
+
+    InvoiceSeries:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique series identifier (CzUid)
+        object:
+          type: string
+          example: invoice_series
+        name:
+          type: string
+          description: Series prefix/name
+        document_type:
+          type: string
+          enum: [fiscal, proforma]
+        description:
+          type: string
+          nullable: true
+        start_number:
+          type: integer
+        next_number:
+          type: integer
+          description: Next available invoice number
+        format:
+          type: string
+          description: Number format pattern
+          example: "FACT-{year}-{number}"
+        is_primary:
+          type: boolean
+        is_used:
+          type: boolean
+          description: Whether any documents have been issued with this series
+        year:
+          type: integer
+        created_at:
+          type: integer
+          description: Unix timestamp
+
+    BankAccount:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique bank account identifier (CzUid)
+        object:
+          type: string
+          example: bank_account
+        iban:
+          type: string
+        bank_name:
+          type: string
+        currency:
+          type: string
+        swift:
+          type: string
+          nullable: true
+        bic:
+          type: string
+          nullable: true
+        is_visible:
+          type: boolean
+          description: Whether shown on invoices
+        created_at:
+          type: integer
+          description: Unix timestamp
+
   responses:
     UnauthorizedError:
       description: API key is missing or invalid
@@ -3751,7 +3869,7 @@ paths:
       summary: Get API settings
       description: |
         Get current API settings, configuration, and account information.
-        
+
         This endpoint provides comprehensive information about:
         - API version and rate limits
         - Firm details and configuration
@@ -3771,6 +3889,721 @@ paths:
                     type: boolean
                   data:
                     $ref: '#/components/schemas/Settings'
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [Dashboard]
+      summary: Get dashboard statistics
+      description: |
+        Retrieve aggregated KPI statistics for the dashboard including revenue, expenses,
+        overdue invoices, outstanding amounts, and payments received in a given period.
+      parameters:
+        - name: period
+          in: query
+          description: Time period for aggregation
+          schema:
+            type: string
+            enum: [today, last_7_days, last_30_days, last_90_days, last_12_months, this_month, this_year, last_month, last_year]
+            default: last_30_days
+        - name: currency
+          in: query
+          description: Currency for amounts (defaults to firm's account currency)
+          schema:
+            type: string
+            example: RON
+      responses:
+        '200':
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      object:
+                        type: string
+                        example: dashboard_stats
+                      period:
+                        type: string
+                      currency:
+                        type: string
+                      date_range:
+                        type: object
+                        properties:
+                          start:
+                            type: string
+                          end:
+                            type: string
+                      revenue:
+                        type: object
+                        properties:
+                          total:
+                            type: number
+                          currency:
+                            type: string
+                      expenses:
+                        type: object
+                        properties:
+                          total:
+                            type: number
+                          currency:
+                            type: string
+                      overdue:
+                        type: object
+                        properties:
+                          total:
+                            type: number
+                          count:
+                            type: integer
+                          currency:
+                            type: string
+                      outstanding:
+                        type: object
+                        properties:
+                          total:
+                            type: number
+                          count:
+                            type: integer
+                          currency:
+                            type: string
+                      payments_received:
+                        type: object
+                        properties:
+                          total:
+                            type: number
+                          count:
+                            type: integer
+                          currency:
+                            type: string
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /payments:
+    get:
+      operationId: listPayments
+      tags: [Payments]
+      summary: List payments
+      description: |
+        List all payments across invoices for the authenticated firm.
+        Returns a flattened view of invoice payments with invoice and client references.
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: invoice_id
+          in: query
+          description: Filter by invoice ID (CzUid)
+          schema:
+            type: string
+        - name: client_id
+          in: query
+          description: Filter by client ID (CzUid)
+          schema:
+            type: string
+        - name: type
+          in: query
+          description: Filter by payment type
+          schema:
+            type: string
+            enum: [receipt, bank_order, card, cheque, promissory_note, other, fiscal_receipt]
+        - name: date_from
+          in: query
+          description: Filter from date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          description: Filter to date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [date, amount, created_at]
+            default: date
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: List of payments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      object:
+                        type: string
+                        example: list
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Payment'
+                      has_more:
+                        type: boolean
+                      total:
+                        type: integer
+                      page:
+                        type: integer
+                      per_page:
+                        type: integer
+                      total_pages:
+                        type: integer
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /payments/{id}:
+    get:
+      operationId: getPayment
+      tags: [Payments]
+      summary: Retrieve a payment
+      description: Get details of a specific payment by its ID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Payment details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Payment'
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /company-lookup:
+    get:
+      operationId: companyLookup
+      tags: [Company Lookup]
+      summary: Look up a Romanian company by CUI/CIF
+      description: |
+        Query Romanian company registry data by CUI/CIF number. Returns company name,
+        registration details, address, VAT status, and e-invoice registration status.
+
+        The lookup is rate-limited to 1 request per second due to upstream ANAF constraints.
+      parameters:
+        - name: cui
+          in: query
+          required: true
+          description: The CUI/CIF number to look up (with or without RO prefix)
+          schema:
+            type: string
+            example: "12345678"
+      responses:
+        '200':
+          description: Company data found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      object:
+                        type: string
+                        example: company_lookup
+                      cui:
+                        type: string
+                      name:
+                        type: string
+                      rc:
+                        type: string
+                        description: Trade registry number (Registrul Comerțului)
+                      address:
+                        type: string
+                      city:
+                        type: string
+                      county:
+                        type: string
+                      country:
+                        type: string
+                      postal_code:
+                        type: string
+                      caen:
+                        type: string
+                        description: CAEN activity code
+                      vat_payer:
+                        type: boolean
+                      split_vat:
+                        type: boolean
+                      ro_einvoice_registered:
+                        type: boolean
+                        description: Whether registered for Romanian e-invoice system
+                      is_inactive:
+                        type: boolean
+                      registration_date:
+                        type: string
+                      authority_name:
+                        type: string
+                      source:
+                        type: string
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '404':
+          description: No company found for the given CUI
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '503':
+          description: Lookup service temporarily unavailable
+
+  /invoice-series:
+    get:
+      operationId: listInvoiceSeries
+      tags: [Invoice Series]
+      summary: List invoice series
+      description: List all invoice numbering series for the authenticated firm.
+      parameters:
+        - name: document_type
+          in: query
+          description: Filter by document type
+          schema:
+            type: string
+            enum: [fiscal, proforma]
+      responses:
+        '200':
+          description: List of invoice series
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      object:
+                        type: string
+                        example: list
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/InvoiceSeries'
+                      total:
+                        type: integer
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      operationId: createInvoiceSeries
+      tags: [Invoice Series]
+      summary: Create an invoice series
+      description: Create a new invoice numbering series.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, document_type]
+              properties:
+                name:
+                  type: string
+                  description: Series prefix/name (e.g., "FACT", "PF")
+                  example: FACT
+                document_type:
+                  type: string
+                  enum: [fiscal, proforma]
+                description:
+                  type: string
+                start_number:
+                  type: integer
+                  default: 1
+                  description: First invoice number in the series
+                is_primary:
+                  type: boolean
+                  default: false
+                  description: Set as the default series for this document type
+      responses:
+        '201':
+          description: Series created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/InvoiceSeries'
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '409':
+          description: Series with this name/type already exists
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /invoice-series/{id}:
+    put:
+      operationId: updateInvoiceSeries
+      tags: [Invoice Series]
+      summary: Update an invoice series
+      description: |
+        Update an invoice series. Only series that have not been used for any documents can be modified.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Series updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/InvoiceSeries'
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '400':
+          description: Series is already in use and cannot be modified
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /invoice-series/{id}/set-primary:
+    post:
+      operationId: setInvoiceSeriesPrimary
+      tags: [Invoice Series]
+      summary: Set series as primary
+      description: Set an invoice series as the default for its document type. The previous primary series will be demoted.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Series set as primary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/InvoiceSeries'
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /bank-accounts:
+    get:
+      operationId: listBankAccounts
+      tags: [Bank Accounts]
+      summary: List bank accounts
+      description: List all IBAN bank accounts for the authenticated firm.
+      parameters:
+        - name: currency
+          in: query
+          description: Filter by currency
+          schema:
+            type: string
+            example: RON
+        - name: is_visible
+          in: query
+          description: Filter by visibility on invoices
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: List of bank accounts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      object:
+                        type: string
+                        example: list
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/BankAccount'
+                      total:
+                        type: integer
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      operationId: createBankAccount
+      tags: [Bank Accounts]
+      summary: Create a bank account
+      description: Add a new IBAN bank account. The IBAN is validated and bank name/BIC are auto-detected for Romanian banks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [iban, bank_name, currency]
+              properties:
+                iban:
+                  type: string
+                  description: Valid IBAN number
+                  example: RO49AAAA1B31007593840000
+                bank_name:
+                  type: string
+                  example: Banca Transilvania
+                currency:
+                  type: string
+                  example: RON
+                swift:
+                  type: string
+                  description: SWIFT/BIC code (optional, auto-detected for Romanian banks)
+                is_visible:
+                  type: boolean
+                  default: true
+                  description: Whether to show this account on invoices
+      responses:
+        '201':
+          description: Bank account created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/BankAccount'
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '409':
+          description: IBAN already registered for this firm
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /bank-accounts/{id}:
+    put:
+      operationId: updateBankAccount
+      tags: [Bank Accounts]
+      summary: Update a bank account
+      description: Update bank account details. IBAN uniqueness is validated.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                iban:
+                  type: string
+                bank_name:
+                  type: string
+                currency:
+                  type: string
+                swift:
+                  type: string
+                is_visible:
+                  type: boolean
+      responses:
+        '200':
+          description: Bank account updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/BankAccount'
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    delete:
+      operationId: deleteBankAccount
+      tags: [Bank Accounts]
+      summary: Delete a bank account
+      description: Permanently delete a bank account.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Bank account deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      object:
+                        type: string
+                        example: bank_account
+                      deleted:
+                        type: boolean
+                        example: true
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /efactura/status:
+    get:
+      operationId: getEfacturaStatus
+      tags: [E-Factura]
+      summary: Get e-Factura status
+      description: |
+        Get the current e-Factura configuration status including OAuth connection,
+        token validity, environment settings, and auto-send configuration.
+
+        This is a read-only endpoint. To configure e-Factura OAuth, use the web interface at contazen.ro.
+      responses:
+        '200':
+          description: E-Factura status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      object:
+                        type: string
+                        example: efactura_status
+                      enabled:
+                        type: boolean
+                      oauth_configured:
+                        type: boolean
+                      token_valid:
+                        type: boolean
+                      token_expires_at:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      environment:
+                        type: string
+                        enum: [test, live]
+                      environments:
+                        type: object
+                        properties:
+                          test:
+                            type: object
+                            properties:
+                              configured:
+                                type: boolean
+                              token_expires_at:
+                                type: string
+                                nullable: true
+                          live:
+                            type: object
+                            properties:
+                              configured:
+                                type: boolean
+                              token_expires_at:
+                                type: string
+                                nullable: true
+                      auto_send:
+                        type: boolean
+                      auto_send_timing:
+                        type: string
+                        enum: [immediate, delayed]
+                        nullable: true
+                      auto_send_delay_days:
+                        type: integer
+                        nullable: true
+                      send_to_public_institutions:
+                        type: boolean
+                      configure_url:
+                        type: string
+                        description: URL to configure e-Factura on the web interface
                   meta:
                     $ref: '#/components/schemas/ResponseMeta'
         '401':

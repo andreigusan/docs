@@ -120,6 +120,49 @@
           ]
         },
         {
+          "group": "Dashboard",
+          "pages": [
+            "api-reference/endpoints/dashboard/stats"
+          ]
+        },
+        {
+          "group": "Payments",
+          "pages": [
+            "api-reference/endpoints/payments/list",
+            "api-reference/endpoints/payments/retrieve"
+          ]
+        },
+        {
+          "group": "Company Lookup",
+          "pages": [
+            "api-reference/endpoints/company-lookup/lookup"
+          ]
+        },
+        {
+          "group": "Invoice Series",
+          "pages": [
+            "api-reference/endpoints/invoice-series/list",
+            "api-reference/endpoints/invoice-series/create",
+            "api-reference/endpoints/invoice-series/update",
+            "api-reference/endpoints/invoice-series/set-primary"
+          ]
+        },
+        {
+          "group": "Bank Accounts",
+          "pages": [
+            "api-reference/endpoints/bank-accounts/list",
+            "api-reference/endpoints/bank-accounts/create",
+            "api-reference/endpoints/bank-accounts/update",
+            "api-reference/endpoints/bank-accounts/delete"
+          ]
+        },
+        {
+          "group": "E-Factura",
+          "pages": [
+            "api-reference/endpoints/efactura/status"
+          ]
+        },
+        {
           "group": "Settings",
           "pages": [
             "api-reference/endpoints/settings/get"
