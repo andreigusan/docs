@@ -602,19 +602,53 @@ components:
       properties:
         id:
           type: string
+          description: Unique payment identifier (CzUid)
+        object:
+          type: string
+          example: payment
         amount:
           type: number
-        payment_date:
+          description: Payment amount
+        currency:
+          type: string
+        date:
           type: string
           format: date
-        payment_method:
+          nullable: true
+        type:
           type: string
-        observations:
+          enum: [receipt, bank_order, card, cheque, promissory_note, other, fiscal_receipt]
+        type_description:
           type: string
+          description: Localized payment type description
+        reference:
+          type: string
+          nullable: true
+          description: Reference number
+        invoice:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+            number:
+              type: string
+            total:
+              type: number
+            currency:
+              type: string
+        client:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+            name:
+              type: string
         created_at:
-          type: string
-          format: date-time
-          
+          type: integer
+          description: Unix timestamp
+
     InvoiceCreateRequest:
       type: object
       oneOf:
@@ -1603,58 +1637,6 @@ components:
             reset_at:
               type: string
               format: date-time
-
-    Payment:
-      type: object
-      properties:
-        id:
-          type: string
-          description: Unique payment identifier (CzUid)
-        object:
-          type: string
-          example: payment
-        amount:
-          type: number
-          description: Payment amount
-        currency:
-          type: string
-        date:
-          type: string
-          format: date
-          nullable: true
-        type:
-          type: string
-          enum: [receipt, bank_order, card, cheque, promissory_note, other, fiscal_receipt]
-        type_description:
-          type: string
-          description: Localized payment type description
-        reference:
-          type: string
-          nullable: true
-          description: Reference number
-        invoice:
-          type: object
-          nullable: true
-          properties:
-            id:
-              type: string
-            number:
-              type: string
-            total:
-              type: number
-            currency:
-              type: string
-        client:
-          type: object
-          nullable: true
-          properties:
-            id:
-              type: string
-            name:
-              type: string
-        created_at:
-          type: integer
-          description: Unix timestamp
 
     InvoiceSeries:
       type: object
