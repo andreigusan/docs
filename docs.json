@@ -125,7 +125,8 @@
                       "api-reference/endpoints/expenses/delete",
                       "api-reference/endpoints/expenses/pay",
                       "api-reference/endpoints/expenses/export",
-                      "api-reference/endpoints/expenses/attachment"
+                      "api-reference/endpoints/expenses/attachment",
+                      "api-reference/endpoints/expenses/efactura-pdf"
                     ]
                   },
                   {

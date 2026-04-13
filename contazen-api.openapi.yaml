@@ -1111,6 +1111,29 @@ components:
               enum: [pdf, image]
             size:
               type: integer
+        efactura:
+          type: object
+          nullable: true
+          description: |
+            Populated when the expense was imported from the ANAF e-Factura SPV
+            inbox. `null` for manually created expenses.
+          properties:
+            supplier_invoice_id:
+              type: string
+            invoice_number:
+              type: string
+              nullable: true
+            anaf_message_id:
+              type: string
+              nullable: true
+            xml_available:
+              type: boolean
+            pdf_available:
+              type: boolean
+            pdf_url:
+              type: string
+              nullable: true
+              description: Bearer-authenticated URL that streams the e-Factura PDF; regenerated on demand when missing
         created_at:
           type: string
           format: date-time
@@ -3360,7 +3383,46 @@ paths:
           $ref: '#/components/responses/NotFoundError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
-          
+
+  /expenses/{id}/efactura-pdf:
+    get:
+      operationId: getExpenseEfacturaPdf
+      tags: [Expenses]
+      summary: Download e-Factura PDF
+      description: |
+        Streams the ANAF e-Factura PDF for an expense imported from the SPV
+        inbox. Generated on demand via the ANAF public validator the first
+        time it is requested, then cached on disk.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Expense CzUid
+      responses:
+        '200':
+          description: PDF stream
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Expense is not linked to an SPV supplier invoice or XML missing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '502':
+          description: ANAF PDF generation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   # Expense Categories endpoints
   /expense-categories:
     get:

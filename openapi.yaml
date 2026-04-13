@@ -1085,6 +1085,34 @@ components:
               enum: [pdf, image]
             size:
               type: integer
+        efactura:
+          type: object
+          nullable: true
+          description: |
+            Populated when the expense was imported from the ANAF e-Factura SPV
+            inbox. `null` for manually created expenses. `pdf_url` points to an
+            API endpoint that requires the same Bearer authentication as the
+            rest of the API.
+          properties:
+            supplier_invoice_id:
+              type: string
+              description: CzUid of the linked supplier invoice record
+            invoice_number:
+              type: string
+              nullable: true
+            anaf_message_id:
+              type: string
+              nullable: true
+              description: ANAF e-Factura message identifier
+            xml_available:
+              type: boolean
+            pdf_available:
+              type: boolean
+              description: True when the PDF has already been generated on disk
+            pdf_url:
+              type: string
+              nullable: true
+              description: Bearer-authenticated URL that streams the e-Factura PDF; regenerated on demand via the ANAF validator when missing
         created_at:
           type: string
           format: date-time
@@ -3325,7 +3353,48 @@ paths:
           $ref: '#/components/responses/NotFoundError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
-          
+
+  /expenses/{id}/efactura-pdf:
+    get:
+      operationId: getExpenseEfacturaPdf
+      tags: [Expenses]
+      summary: Download e-Factura PDF
+      description: |
+        Streams the ANAF e-Factura PDF for an expense that was imported from
+        the SPV inbox. The PDF is generated on demand via the ANAF public
+        validator the first time it is requested and cached on disk for
+        subsequent calls. Returns 404 when the expense was not imported from
+        SPV or its XML is missing.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Expense CzUid
+      responses:
+        '200':
+          description: PDF stream
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Expense is not linked to an SPV supplier invoice, or the XML/PDF could not be located
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '502':
+          description: ANAF PDF generation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   # Expense Categories endpoints
   /expense-categories:
     get:

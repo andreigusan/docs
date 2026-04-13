@@ -156,7 +156,20 @@ The Retrieve Expense endpoint allows you to get complete details about a specifi
         <ResponseField name="type" type="string">File type (pdf or image)</ResponseField>
       </Expandable>
     </ResponseField>
-    
+
+    <ResponseField name="efactura" type="object">
+      Populated when the expense was imported from the ANAF e-Factura SPV
+      inbox. `null` for manually created expenses.
+      <Expandable title="Efactura Object">
+        <ResponseField name="supplier_invoice_id" type="string">CzUid of the linked supplier invoice</ResponseField>
+        <ResponseField name="invoice_number" type="string">Supplier's invoice number</ResponseField>
+        <ResponseField name="anaf_message_id" type="string">ANAF e-Factura message identifier</ResponseField>
+        <ResponseField name="xml_available" type="boolean">Whether the e-Factura XML is stored on disk</ResponseField>
+        <ResponseField name="pdf_available" type="boolean">Whether the PDF has already been generated</ResponseField>
+        <ResponseField name="pdf_url" type="string">Bearer-authenticated URL that streams the e-Factura PDF (see [Download e-Factura PDF](/api-reference/endpoints/expenses/efactura-pdf))</ResponseField>
+      </Expandable>
+    </ResponseField>
+
     <ResponseField name="created_at" type="string" format="datetime">
       When the expense was created
     </ResponseField>
@@ -272,6 +285,14 @@ print_r($data['expense']);
     "attachment": {
       "url": "https://api.contazen.ro/v1/files/download/att_def456",
       "type": "pdf"
+    },
+    "efactura": {
+      "supplier_invoice_id": "si_abc123",
+      "invoice_number": "119079",
+      "anaf_message_id": "4891234567",
+      "xml_available": true,
+      "pdf_available": true,
+      "pdf_url": "https://app.contazen.ro/api/v1/expenses/exp_abc123/efactura-pdf"
     },
     "created_at": "2024-01-15 10:30:00",
     "updated_at": "2024-01-15 10:30:00"
