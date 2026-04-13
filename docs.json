@@ -75,7 +75,34 @@
                       "api-reference/endpoints/invoices/unvoid",
                       "api-reference/endpoints/invoices/delete",
                       "api-reference/endpoints/invoices/totals",
-                      "api-reference/endpoints/invoices/stats"
+                      "api-reference/endpoints/invoices/stats",
+                      "api-reference/endpoints/invoices/history",
+                      "api-reference/endpoints/invoices/payment-estimate"
+                    ]
+                  },
+                  {
+                    "group": "Invoice Series",
+                    "pages": [
+                      "api-reference/endpoints/invoice-series/list",
+                      "api-reference/endpoints/invoice-series/create",
+                      "api-reference/endpoints/invoice-series/update",
+                      "api-reference/endpoints/invoice-series/set-primary"
+                    ]
+                  },
+                  {
+                    "group": "Payments",
+                    "pages": [
+                      "api-reference/endpoints/payments/list",
+                      "api-reference/endpoints/payments/retrieve"
+                    ]
+                  },
+                  {
+                    "group": "Bank Accounts",
+                    "pages": [
+                      "api-reference/endpoints/bank-accounts/list",
+                      "api-reference/endpoints/bank-accounts/create",
+                      "api-reference/endpoints/bank-accounts/update",
+                      "api-reference/endpoints/bank-accounts/delete"
                     ]
                   },
                   {
@@ -120,6 +147,30 @@
                       "api-reference/endpoints/suppliers/retrieve",
                       "api-reference/endpoints/suppliers/update",
                       "api-reference/endpoints/suppliers/delete"
+                    ]
+                  },
+                  {
+                    "group": "Dashboard",
+                    "pages": [
+                      "api-reference/endpoints/dashboard/stats",
+                      "api-reference/endpoints/dashboard/chart-data",
+                      "api-reference/endpoints/dashboard/receivables",
+                      "api-reference/endpoints/dashboard/expenses",
+                      "api-reference/endpoints/dashboard/fiscal",
+                      "api-reference/endpoints/dashboard/forecast",
+                      "api-reference/endpoints/dashboard/activity"
+                    ]
+                  },
+                  {
+                    "group": "Company Lookup",
+                    "pages": [
+                      "api-reference/endpoints/company-lookup/lookup"
+                    ]
+                  },
+                  {
+                    "group": "E-Factura",
+                    "pages": [
+                      "api-reference/endpoints/efactura/status"
                     ]
                   },
                   {

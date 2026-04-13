@@ -124,6 +124,18 @@ tags:
     description: Manage expense suppliers and vendors
   - name: Settings
     description: API settings and configuration
+  - name: Dashboard
+    description: Aggregated KPIs, charts, forecasts and activity feed
+  - name: Payments
+    description: Payments received against invoices
+  - name: Company Lookup
+    description: Romanian company lookup (ANAF / VIES)
+  - name: Invoice Series
+    description: Manage invoice numbering series
+  - name: Bank Accounts
+    description: Manage IBAN bank accounts
+  - name: E-Factura
+    description: Romanian e-invoicing status and configuration
 
 security:
   - bearerAuth: []
@@ -1719,6 +1731,12 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
     MethodNotAllowedError:
       description: Method not allowed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    BadRequestError:
+      description: Invalid or missing request parameters
       content:
         application/json:
           schema:
@@ -4590,3 +4608,407 @@ paths:
                     $ref: '#/components/schemas/ResponseMeta'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+
+  /dashboard/chart-data:
+    get:
+      operationId: getDashboardChartData
+      tags: [Dashboard]
+      summary: Historical monthly chart data
+      description: |
+        Monthly series for invoicing, collections, and expenses across the last
+        N months. Used to render dashboard line/bar charts.
+      parameters:
+        - name: months
+          in: query
+          description: Number of months of history to return (1-24).
+          schema: { type: integer, default: 12, minimum: 1, maximum: 24 }
+        - name: currency
+          in: query
+          description: Currency for amounts (defaults to firm's account currency).
+          schema: { type: string, example: RON }
+      responses:
+        '200':
+          description: Monthly chart data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      currency: { type: string }
+                      months:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            label: { type: string, description: "e.g. Apr 2026" }
+                            year: { type: integer }
+                            month: { type: integer, minimum: 1, maximum: 12 }
+                            facturat: { type: number, description: Amount invoiced that month }
+                            incasari: { type: number, description: Amount collected that month }
+                            cheltuieli: { type: number, description: Expenses that month }
+                      totals:
+                        type: object
+                        properties:
+                          facturat: { type: number }
+                          incasari: { type: number }
+                          cheltuieli: { type: number }
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+
+  /dashboard/receivables:
+    get:
+      operationId: getDashboardReceivables
+      tags: [Dashboard]
+      summary: Accounts receivable overview
+      description: |
+        AR aging buckets, top client risk concentration, list of unpaid invoices,
+        and a payment-behavior anomaly detector (client paying slower than usual).
+      parameters:
+        - name: currency
+          in: query
+          schema: { type: string, example: RON }
+      responses:
+        '200':
+          description: Receivables snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      currency: { type: string }
+                      ar_aging:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            label: { type: string, description: "e.g. 0-30 days" }
+                            pct: { type: number, description: Percent of total outstanding }
+                            amount: { type: number }
+                      risk_concentration:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            client: { type: string }
+                            client_id: { type: string }
+                            pct: { type: number }
+                            amount: { type: number }
+                            alert: { type: boolean }
+                      risk_concentration_summary: { type: string, nullable: true }
+                      unpaid_invoices:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            invoice_id: { type: string }
+                            display_number: { type: string }
+                            client: { type: string }
+                            date: { type: string, format: date }
+                            amount_due: { type: number }
+                            days_overdue: { type: integer }
+                      anomaly:
+                        type: object
+                        nullable: true
+                        properties:
+                          client: { type: string }
+                          client_id: { type: string }
+                          normal_days: { type: integer }
+                          current_days: { type: integer }
+                          invoice_display_number: { type: string }
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+
+  /dashboard/expenses:
+    get:
+      operationId: getDashboardExpenses
+      tags: [Dashboard]
+      summary: Current-month expense summary
+      description: Total expenses for the current month plus the most recent supplier invoices.
+      parameters:
+        - name: currency
+          in: query
+          schema: { type: string, example: RON }
+        - name: limit
+          in: query
+          description: Max supplier invoices to return (1-50).
+          schema: { type: integer, default: 10, minimum: 1, maximum: 50 }
+      responses:
+        '200':
+          description: Expense snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      currency: { type: string }
+                      current_month:
+                        type: object
+                        properties:
+                          total: { type: number }
+                          month_label: { type: string, description: "e.g. Aprilie 2026" }
+                      supplier_invoices:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            expense_id: { type: string }
+                            date: { type: string, format: date }
+                            supplier: { type: string }
+                            supplier_id: { type: string, nullable: true }
+                            total: { type: number }
+                            category: { type: string, nullable: true }
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+
+  /dashboard/fiscal:
+    get:
+      operationId: getDashboardFiscal
+      tags: [Dashboard]
+      summary: VAT position and fiscal deadlines
+      description: |
+        Current-month VAT collected/deductible/payable plus upcoming Romanian
+        fiscal deadlines (D300, D112, D394).
+      responses:
+        '200':
+          description: Fiscal snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      currency: { type: string }
+                      tva:
+                        type: object
+                        properties:
+                          month_label: { type: string }
+                          collected: { type: number }
+                          deductible: { type: number }
+                          payable: { type: number }
+                          estimated_end_of_month: { type: number }
+                      deadlines:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name: { type: string, example: D300 }
+                            due_date: { type: string, format: date }
+                            days_remaining: { type: integer }
+                            amount: { type: number, nullable: true }
+                            severity:
+                              type: string
+                              enum: [info, warning, urgent]
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+
+  /dashboard/forecast:
+    get:
+      operationId: getDashboardForecast
+      tags: [Dashboard]
+      summary: 90-day sales and collections forecast
+      description: |
+        Forward 90-day projection based on last 6 months of activity. Also returns
+        daily-granularity arrays suitable for a forecast chart.
+      parameters:
+        - name: currency
+          in: query
+          schema: { type: string, example: RON }
+      responses:
+        '200':
+          description: Forecast data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      currency: { type: string }
+                      estimated_invoicing: { type: number }
+                      estimated_collections: { type: number }
+                      outstanding_overdue: { type: number }
+                      predicted_new_invoices: { type: integer }
+                      daily_forecast:
+                        type: object
+                        properties:
+                          sales:
+                            type: array
+                            items: { type: number }
+                            description: 90 values — one per forecast day
+                          collections:
+                            type: array
+                            items: { type: number }
+                            description: 90 values — one per forecast day
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+
+  /dashboard/activity:
+    get:
+      operationId: getDashboardActivity
+      tags: [Dashboard]
+      summary: Recent activity feed
+      description: Latest invoices created, invoices paid, and expenses recorded (last 30 days).
+      parameters:
+        - name: limit
+          in: query
+          description: Max activities to return (1-50).
+          schema: { type: integer, default: 20, minimum: 1, maximum: 50 }
+      responses:
+        '200':
+          description: Activity feed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        type:
+                          type: string
+                          enum: [invoice.created, invoice.paid, expense.created]
+                        title: { type: string }
+                        description: { type: string }
+                        amount: { type: number }
+                        currency: { type: string }
+                        created_at: { type: string, format: date-time }
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+
+  /invoices/{id}/history:
+    get:
+      operationId: getInvoiceHistory
+      tags: [Invoices]
+      summary: Invoice change history
+      description: Audit trail for a fiscal invoice — creation, updates, payments, voids, etc.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: Invoice ID (czUid).
+        - name: page
+          in: query
+          schema: { type: integer, default: 1, minimum: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, default: 50, minimum: 1, maximum: 100 }
+      responses:
+        '200':
+          description: History entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      object: { type: string, example: list }
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: string }
+                            type: { type: string, description: Internal event type }
+                            type_label: { type: string, description: Human-readable label }
+                            message: { type: string }
+                            icon: { type: string, nullable: true }
+                            by: { type: string, nullable: true, description: User who triggered the event }
+                            created_at: { type: string, format: date-time }
+                      pagination:
+                        type: object
+                        properties:
+                          page: { type: integer }
+                          per_page: { type: integer }
+                          total: { type: integer }
+                          total_pages: { type: integer }
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+
+  /invoices/{id}/payment-estimate:
+    get:
+      operationId: getInvoicePaymentEstimate
+      tags: [Invoices]
+      summary: Predict invoice payment date
+      description: |
+        Returns a predicted payment date for an unpaid invoice using the client's
+        historical average days-to-pay (falls back to firm average, then to
+        `due_at + 7 days`). For already-paid invoices, returns the actual payment date.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: Invoice ID (czUid).
+      responses:
+        '200':
+          description: Payment estimate
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum: [unpaid, paid]
+                      estimated_at:
+                        type: string
+                        format: date
+                        nullable: true
+                      due_at:
+                        type: string
+                        format: date
+                        nullable: true
+                      days_from_now:
+                        type: integer
+                        description: Days between today and estimated_at (negative if past).
+                      days_overdue:
+                        type: integer
+                        description: Days the invoice is already overdue (0 if not overdue).
+                      confidence:
+                        type: string
+                        enum: [low, medium, high, actual]
+                      basis:
+                        type: object
+                        description: Data used to compute the estimate.
+                        properties:
+                          source:
+                            type: string
+                            enum: [client_history, firm_history, due_date_fallback, actual_payment]
+                          sample_size: { type: integer, nullable: true }
+                          avg_days_to_pay: { type: number, nullable: true }
+                          client_on_time_pct: { type: number, nullable: true }
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
