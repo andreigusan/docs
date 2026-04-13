@@ -112,8 +112,7 @@
                       "api-reference/endpoints/products/create",
                       "api-reference/endpoints/products/retrieve",
                       "api-reference/endpoints/products/update",
-                      "api-reference/endpoints/products/delete",
-                      "api-reference/endpoints/products/stock"
+                      "api-reference/endpoints/products/delete"
                     ]
                   },
                   {

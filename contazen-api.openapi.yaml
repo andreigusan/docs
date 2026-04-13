@@ -246,56 +246,68 @@ components:
         name:
           type: string
           description: Client name
-        type:
-          type: string
-          enum: [person, company]
-          default: company
         email:
           type: string
           format: email
+          nullable: true
         phone:
           type: string
+          nullable: true
         cui:
           type: string
           description: Tax identification number (CIF/CUI)
+          nullable: true
         cui_prefix:
           type: string
           description: Country prefix for CUI (e.g., RO)
-          default: RO
+          nullable: true
         rc:
           type: string
           description: Trade register number
+          nullable: true
+        client_type:
+          type: string
+          enum: [b2b, b2c]
+          description: "`b2b` for companies, `b2c` for individuals"
         address:
           type: string
+          nullable: true
         city:
           type: string
+          nullable: true
         county:
           type: string
+          nullable: true
         country:
           type: string
-          default: RO
+          nullable: true
         postal_code:
           type: string
+          nullable: true
         iban:
           type: string
-        bank_name:
+          nullable: true
+        bank:
           type: string
+          nullable: true
         contact_person:
           type: string
-        notes:
-          type: string
-        is_active:
-          type: boolean
-          default: true
-        is_firm:
-          type: boolean
-          description: True for companies (B2B), false for individuals (B2C)
+          nullable: true
         created_at:
-          type: string
-          format: date-time
-        modified_at:
-          type: string
-          format: date-time
+          type: integer
+          description: Unix timestamp
+        updated_at:
+          type: integer
+          nullable: true
+          description: Unix timestamp (currently always null)
+        metadata:
+          type: object
+          description: Present only on detailed responses (GET /clients/{id}, POST, PUT).
+          properties:
+            invoices_count:
+              type: integer
+            unpaid_total:
+              type: number
           
     ClientList:
       type: object
@@ -317,10 +329,6 @@ components:
           type: string
           minLength: 1
           maxLength: 255
-        type:
-          type: string
-          enum: [person, company]
-          default: company
         email:
           type: string
           format: email
@@ -331,7 +339,6 @@ components:
           description: Tax identification number
         cui_prefix:
           type: string
-          default: RO
         rc:
           type: string
           description: Trade register number
@@ -339,6 +346,7 @@ components:
           type: string
         city:
           type: string
+          description: For București, include the sector (e.g. "București, Sector 1").
         county:
           type: string
         country:
@@ -348,23 +356,20 @@ components:
           type: string
         iban:
           type: string
-        bank_name:
+        bank:
           type: string
+          description: Bank name
         contact_person:
-          type: string
-        notes:
           type: string
           
     ClientUpdateRequest:
       type: object
+      description: All fields optional — only provided fields are updated.
       properties:
         name:
           type: string
           minLength: 1
           maxLength: 255
-        type:
-          type: string
-          enum: [person, company]
         email:
           type: string
           format: email
@@ -388,15 +393,12 @@ components:
           type: string
         iban:
           type: string
-        bank_name:
+        bank:
           type: string
+          description: Bank name
         contact_person:
           type: string
-        notes:
-          type: string
-        is_active:
-          type: boolean
-          
+
     Invoice:
       type: object
       required:
@@ -994,26 +996,6 @@ components:
           type: number
         stock_max:
           type: number
-          
-    StockAdjustment:
-      type: object
-      required:
-        - quantity
-        - type
-      properties:
-        quantity:
-          type: number
-          description: Quantity to adjust (positive or negative)
-        type:
-          type: string
-          enum: [add, remove, set]
-          description: Type of adjustment (add/remove relative, set absolute)
-        reason:
-          type: string
-          description: Reason for adjustment
-        reference:
-          type: string
-          description: Reference document number
           
     Expense:
       type: object
@@ -1929,23 +1911,17 @@ paths:
           schema:
             type: string
           description: Search term for name, email, or CUI
-        - name: is_active
-          in: query
-          schema:
-            type: integer
-            enum: [0, 1]
-          description: Filter by active status (0=inactive, 1=active)
-        - name: type
+        - name: client_type
           in: query
           schema:
             type: string
-            enum: [person, company]
-          description: Filter by client type
+            enum: [b2b, b2c]
+          description: Filter by client type (`b2b` = companies, `b2c` = individuals)
         - name: sort
           in: query
           schema:
             type: string
-            enum: [name, created_at, modified_at]
+            enum: [name, created_at]
             default: name
           description: Sort field
         - name: order
@@ -2923,63 +2899,6 @@ paths:
         '401':
           $ref: '#/components/responses/UnauthorizedError'
           
-  /products/{id}/stock:
-    post:
-      operationId: adjustProductStock
-      tags: [Products]
-      summary: Adjust product stock
-      description: |
-        Adjust product stock levels.
-        
-        ## Adjustment Types
-        - `add`: Add to current stock
-        - `remove`: Remove from current stock
-        - `set`: Set absolute stock level
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Product CzUid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/StockAdjustment'
-      responses:
-        '200':
-          description: Stock adjusted
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: object
-                    properties:
-                      previous_quantity:
-                        type: number
-                      new_quantity:
-                        type: number
-                      adjustment:
-                        type: number
-                  meta:
-                    $ref: '#/components/schemas/ResponseMeta'
-        '400':
-          description: Invalid adjustment (e.g., negative stock)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-          
   # Expenses endpoints
   /expenses:
     get:
@@ -3084,7 +3003,7 @@ paths:
           in: query
           schema:
             type: string
-          description: "Comma-separated list (supplier,category,user,attachment) - Note: attachment is singular as each expense supports only one attachment"
+          description: "Comma-separated list of relations to expand. Supported: `supplier`, `category`, `user`."
       responses:
         '200':
           description: List of expenses
@@ -3225,7 +3144,7 @@ paths:
           in: query
           schema:
             type: string
-          description: "Comma-separated list (supplier,category,user,attachment) - Note: attachment is singular as each expense supports only one attachment"
+          description: "Comma-separated list of relations to expand. Supported: `supplier`, `category`, `user`."
       responses:
         '200':
           description: Expense details
