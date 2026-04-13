@@ -150,18 +150,6 @@
                     ]
                   },
                   {
-                    "group": "Dashboard",
-                    "pages": [
-                      "api-reference/endpoints/dashboard/stats",
-                      "api-reference/endpoints/dashboard/chart-data",
-                      "api-reference/endpoints/dashboard/receivables",
-                      "api-reference/endpoints/dashboard/expenses",
-                      "api-reference/endpoints/dashboard/fiscal",
-                      "api-reference/endpoints/dashboard/forecast",
-                      "api-reference/endpoints/dashboard/activity"
-                    ]
-                  },
-                  {
                     "group": "Company Lookup",
                     "pages": [
                       "api-reference/endpoints/company-lookup/lookup"
