@@ -1,0 +1,11 @@
+---
+title: 'Disable Language'
+openapi: 'DELETE /languages/{id}'
+description: 'Remove a language from the firm.'
+---
+
+## Overview
+
+Removes a `firm_language` row. Returns `409 is_default` if the caller
+tries to remove `ro` — Romanian is the hard-coded default language and
+must stay enabled.

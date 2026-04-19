@@ -1,0 +1,33 @@
+---
+title: 'Storno Invoice'
+openapi: 'POST /invoices/{id}/storno'
+description: 'Create a reversal invoice for a fiscal invoice.'
+---
+
+## Overview
+
+Produces a **storno** (reversal) invoice from a fiscal source invoice. The
+new invoice mirrors every line of the source with negated amounts, receives
+its own number from the same series, and is linked back to the source via
+`storno_bill_id`.
+
+Both invoices record a history event — the source gets a `storno` entry and
+the new reversal gets a `storned` entry. The whole flow runs inside a
+transaction: if any step fails, nothing is persisted.
+
+## Preconditions
+
+- The source must be a **fiscal** invoice (not a draft or proforma).
+- The source itself must not already be a storno.
+- The source must not have been storno'd before (a single invoice can only
+  be reversed once).
+
+Calls that violate these preconditions return `400` with codes
+`invoice_cannot_be_storned` or `invoice_already_storned`.
+
+## Deleting vs. storning
+
+Storno is the ANAF-compliant way to cancel a fiscal invoice. Prefer
+`/invoices/{id}/storno` over `DELETE /invoices/{id}` once an invoice has
+been issued to a client or sent to SPV — deleting a fiscal invoice is
+blocked by the series-continuity rules.

@@ -57,6 +57,14 @@ The List Expenses endpoint allows you to retrieve all expenses for your firm wit
   End date for filtering expenses (YYYY-MM-DD format)
 </ParamField>
 
+<ParamField query="min_amount" type="number">
+  Minimum expense total (inclusive). Matched against the original-currency total.
+</ParamField>
+
+<ParamField query="max_amount" type="number">
+  Maximum expense total (inclusive). Matched against the original-currency total.
+</ParamField>
+
 <ParamField query="sort" type="string" default="created_at">
   Sort field:
   - `created_at` - Sort by creation date

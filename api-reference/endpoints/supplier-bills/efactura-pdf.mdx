@@ -1,0 +1,18 @@
+---
+title: 'Download e-Factura PDF'
+openapi: 'GET /supplier-bills/{id}/efactura-pdf'
+description: 'Stream the ANAF-rendered PDF for a supplier bill.'
+---
+
+## Overview
+
+Streams the e-Factura PDF for this bill. The PDF is generated on demand the
+first time it is requested by sending the original SPV XML to the ANAF
+public validator (`transformare/FACT1`); the result is cached on disk and
+re-served on subsequent requests.
+
+Returns **404** with `code: "efactura_not_available"` when the bill has no
+associated SPV message (for example, manually created bills).
+
+The `efactura_pdf_url` field on the supplier bill object gives you a direct
+link to this endpoint.

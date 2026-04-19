@@ -1,0 +1,11 @@
+---
+title: 'Delete VAT Rate'
+openapi: 'DELETE /vat-rates/{id}'
+description: 'Remove a firm-scoped VAT rate.'
+---
+
+## Overview
+
+Removes a custom `firm_vat` row. Fails with `409 in_use` when the rate is
+still referenced by any bill or notice row — use `GET /vat-rates` and check
+`can_be_deleted` before calling this endpoint.

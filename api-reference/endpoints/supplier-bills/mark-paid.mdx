@@ -1,0 +1,17 @@
+---
+title: 'Mark Bill as Paid'
+openapi: 'POST /supplier-bills/{id}/mark-paid'
+description: 'Record a payment on a supplier bill. Supports partial payments.'
+---
+
+## Overview
+
+Records a payment on the supplier bill. Pass `payment_amount` lower than the
+bill total to record a partial payment (status becomes `partial`). When the
+amount is omitted, the full `tax_inclusive` total is used. `payment_date`
+defaults to today.
+
+## Linked expense
+
+If the bill is linked to a `FirmExpense`, that expense is kept in sync — its
+`is_paid` flag and `paid_at` date are updated to match.

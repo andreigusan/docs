@@ -134,6 +134,14 @@ tags:
     description: Manage IBAN bank accounts
   - name: E-Factura
     description: Romanian e-invoicing status and configuration
+  - name: Supplier Bills
+    description: Supplier invoices imported from the ANAF SPV inbox
+  - name: VAT Rates
+    description: Firm-scoped custom VAT rates on top of the Romanian catalog
+  - name: Currencies
+    description: Currencies enabled for the firm's bill templates
+  - name: Languages
+    description: Languages enabled for the firm's bill templates
 
 security:
   - bearerAuth: []
@@ -302,13 +310,58 @@ components:
           description: Unix timestamp (currently always null)
         metadata:
           type: object
-          description: Present only on detailed responses (GET /clients/{id}, POST, PUT).
+          description: |
+            Aggregated counters. Shape depends on the endpoint:
+            - **List** (`GET /clients`): `{ invoices_count, total_invoiced }` — pre-computed
+              via the `with_totals` join so every list item has the numbers needed for the
+              dashboard view.
+            - **Detail / create / update** (`GET /clients/{id}`, `POST`, `PUT`):
+              `{ invoices_count, unpaid_total }` — computed per request against snapshots.
           properties:
             invoices_count:
               type: integer
+            total_invoiced:
+              type: number
+              description: Sum of fiscal invoices issued to this client (list view only).
             unpaid_total:
               type: number
-          
+              description: Remaining unpaid balance (detail view only).
+        stats:
+          type: object
+          description: Present only on detailed responses (`GET /clients/{id}`, `POST`, `PUT`).
+          properties:
+            total_invoiced:
+              type: number
+            total_collected:
+              type: number
+            avg_payment_days:
+              type: integer
+              nullable: true
+              description: Average days between issue and payment on paid invoices. `null` if no paid invoices.
+            last_payment:
+              type: object
+              nullable: true
+              properties:
+                date:
+                  type: integer
+                  nullable: true
+                  description: Unix timestamp
+                amount: { type: number }
+                currency: { type: string, nullable: true }
+                bill_id: { type: string, nullable: true, description: Invoice CzUid }
+                bill_number: { type: string, nullable: true }
+            monthly_series:
+              type: array
+              description: Last 6 months of invoiced vs. collected amounts, oldest first.
+              items:
+                type: object
+                properties:
+                  label: { type: string, example: "Mar 2026" }
+                  year: { type: integer }
+                  month: { type: integer }
+                  invoiced: { type: number }
+                  collected: { type: number }
+
     ClientList:
       type: object
       allOf:
@@ -883,9 +936,19 @@ components:
         ubl_cpv:
           type: string
           description: CPV code
+        type:
+          type: string
+          enum: [product, service]
+          default: service
+          description: |
+            Distinguishes trackable goods from one-off services. `product`
+            rows participate in stock accounting; `service` rows skip the
+            stock columns even when present. Values outside the enum are
+            normalized to `service` on read.
         is_service:
           type: boolean
           default: false
+          description: Legacy flag kept for backwards compatibility. Prefer `type`.
         is_active:
           type: boolean
           default: true
@@ -904,7 +967,7 @@ components:
         modified_at:
           type: string
           format: date-time
-          
+
     ProductList:
       type: object
       allOf:
@@ -950,16 +1013,22 @@ components:
           type: string
         ubl_cpv:
           type: string
+        type:
+          type: string
+          enum: [product, service]
+          default: service
+          description: See `Product.type`. Defaults to `service` when omitted.
         is_service:
           type: boolean
           default: false
+          description: Legacy flag — prefer `type`.
         stock_quantity:
           type: number
         stock_min:
           type: number
         stock_max:
           type: number
-          
+
     ProductUpdateRequest:
       type: object
       properties:
@@ -986,8 +1055,13 @@ components:
           type: string
         ubl_cpv:
           type: string
+        type:
+          type: string
+          enum: [product, service]
+          description: See `Product.type`. Omit to keep the current value.
         is_service:
           type: boolean
+          description: Legacy flag — prefer `type`.
         is_active:
           type: boolean
         stock_quantity:
@@ -996,7 +1070,7 @@ components:
           type: number
         stock_max:
           type: number
-          
+
     Expense:
       type: object
       required:
@@ -1541,6 +1615,159 @@ components:
         is_vat_payer:
           type: boolean
           
+    SupplierBillAmounts:
+      type: object
+      properties:
+        tax_exclusive: { type: number, format: float, description: Subtotal without VAT }
+        tax: { type: number, format: float, description: Total VAT amount }
+        tax_inclusive: { type: number, format: float, description: Grand total }
+        paid: { type: number, format: float, description: Amount already paid }
+        unpaid: { type: number, format: float, description: tax_inclusive minus paid (can be negative for credit notes) }
+
+    SupplierBillSupplierSummary:
+      type: object
+      properties:
+        id: { type: string, nullable: true, description: Supplier CzUid (null when no FirmSupplier row exists) }
+        name: { type: string, nullable: true }
+        vat_id: { type: string, nullable: true }
+        reg_com: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+
+    SupplierBill:
+      type: object
+      properties:
+        id: { type: string, description: Supplier bill CzUid }
+        object: { type: string, example: supplier_bill }
+        invoice_number: { type: string }
+        invoice_type_code: { type: string, enum: ['380', '381'] }
+        invoice_type: { type: string, enum: [invoice, credit_note] }
+        issue_date: { type: string, format: date }
+        due_date: { type: string, format: date, nullable: true }
+        currency: { type: string, example: RON }
+        amounts: { $ref: '#/components/schemas/SupplierBillAmounts' }
+        status: { type: string, enum: [unpaid, paid, partial] }
+        payment_date: { type: string, format: date, nullable: true }
+        payment_amount: { type: number, format: float, nullable: true }
+        supplier: { $ref: '#/components/schemas/SupplierBillSupplierSummary' }
+        supplier_id: { type: string, nullable: true, description: CzUid of the linked FirmSupplier (if any) }
+        expense_id: { type: string, nullable: true, description: CzUid of the linked FirmExpense (if any) }
+        client_id: { type: string, nullable: true, description: CzUid of the reciprocal FirmClient — populated when this firm has a client with the same CIF as the supplier }
+        efactura_message_id: { type: integer, nullable: true, description: Local id of the FirmEfacturaMessage row (the SPV message that produced this bill) }
+        efactura_pdf_url: { type: string, nullable: true, description: Direct URL to the PDF stream endpoint (null when there is no SPV XML) }
+        order_reference: { type: string, nullable: true }
+        note: { type: string, nullable: true }
+        created_at: { type: integer, description: Unix timestamp }
+        updated_at: { type: integer, description: Unix timestamp, nullable: true }
+        expense:
+          type: object
+          nullable: true
+          description: Present when expand contains `expense`.
+        client:
+          type: object
+          nullable: true
+          description: Present when expand contains `client` and a reciprocal client exists.
+        efactura_message:
+          type: object
+          nullable: true
+          description: Present when expand contains `efactura_message`.
+          properties:
+            id: { type: integer }
+            message_id: { type: string }
+            cif: { type: string, nullable: true }
+            type: { type: string, nullable: true }
+            creation_date: { type: string, format: date-time, nullable: true }
+            environment: { type: string, enum: [test, live], nullable: true }
+        lines:
+          type: array
+          description: Present when expand contains `lines`.
+          items:
+            type: object
+
+    SupplierBillBalance:
+      type: object
+      description: Aggregate over the same supplier (matched by id, vat_id, or name).
+      properties:
+        unpaid_total: { type: number, format: float }
+        unpaid_count: { type: integer }
+        currency: { type: string }
+        next_due:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string }
+            invoice_number: { type: string }
+            due_date: { type: string, format: date, nullable: true }
+            tax_inclusive: { type: number, format: float }
+
+    SupplierBillCurrencyTotals:
+      type: object
+      properties:
+        count: { type: integer }
+        tax_exclusive: { type: number, format: float }
+        tax: { type: number, format: float }
+        tax_inclusive: { type: number, format: float }
+        paid: { type: number, format: float }
+        unpaid: { type: number, format: float }
+
+    SupplierBillTotals:
+      type: object
+      description: Aggregate totals (global plus per-currency breakdown).
+      properties:
+        count: { type: integer }
+        tax_exclusive: { type: number, format: float }
+        tax: { type: number, format: float }
+        tax_inclusive: { type: number, format: float }
+        paid: { type: number, format: float }
+        unpaid: { type: number, format: float }
+        by_currency:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/SupplierBillCurrencyTotals'
+
+    SupplierBillList:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/PaginationMeta'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/SupplierBill' }
+            totals:
+              $ref: '#/components/schemas/SupplierBillTotals'
+
+    SupplierBillMarkPaidRequest:
+      type: object
+      properties:
+        payment_date:
+          type: string
+          format: date
+          description: Defaults to today.
+        payment_amount:
+          type: number
+          format: float
+          minimum: 0
+          description: |
+            Defaults to the bill's `tax_inclusive` total. A value lower than
+            the total marks the bill `partial`; zero marks it `unpaid`.
+
+    SupplierBillSyncResult:
+      type: object
+      properties:
+        synced: { type: integer, description: Total messages returned by ANAF for the chosen window }
+        created: { type: integer, description: New FirmEfacturaMessage rows }
+        updated: { type: integer, description: Existing rows touched }
+        failed: { type: integer }
+        xml_saved: { type: integer, description: XML files freshly downloaded to disk }
+        invoices_imported: { type: integer, description: New FirmSupplierInvoice rows produced from XML }
+        days_synced: { type: integer }
+        environment: { type: string, enum: [test, live] }
+        errors:
+          type: array
+          items: { type: string }
+
     Settings:
       type: object
       properties:
@@ -1718,6 +1945,61 @@ components:
         created_at:
           type: integer
           description: Unix timestamp
+
+    VatRate:
+      type: object
+      properties:
+        id:
+          type: string
+          description: VAT rate CzUid
+        percent:
+          type: number
+          example: 19
+        description:
+          type: string
+          example: 19% - TVA
+        is_used:
+          type: boolean
+          description: True if at least one bill row references this rate
+        can_be_deleted:
+          type: boolean
+        is_custom:
+          type: boolean
+          description: Always true for rows returned in data (they are firm-scoped). Standard Romanian rates appear under `available`.
+
+    Currency:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Currency CzUid
+        code:
+          type: string
+          example: EUR
+        description:
+          type: string
+          example: Euro
+        is_used:
+          type: boolean
+        is_default:
+          type: boolean
+          description: True for RON
+
+    Language:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Language CzUid
+        code:
+          type: string
+          example: en
+        description:
+          type: string
+          example: English
+        is_default:
+          type: boolean
+          description: True for `ro`
 
   responses:
     UnauthorizedError:
@@ -1944,19 +2226,25 @@ paths:
           in: query
           schema:
             type: string
-            enum: [name, created_at]
-            default: name
-          description: Sort field
+            enum: [name, created_at, total_invoiced, invoices_count]
+          description: |
+            Sort field. When omitted, results are ordered by aggregated
+            `total_invoiced` DESC (the default surface for the client
+            list).
         - name: order
           in: query
           schema:
             type: string
             enum: [asc, desc]
             default: asc
-          description: Sort order
+          description: Sort order (ignored when `sort` is omitted)
       responses:
         '200':
-          description: List of clients
+          description: |
+            List of clients. Each item includes a `metadata` block with
+            `invoices_count` and `total_invoiced` aggregated across the
+            firm's fiscal invoices (snapshot-aware), so the list view can
+            render totals without a follow-up call.
           content:
             application/json:
               schema:
@@ -1970,7 +2258,7 @@ paths:
                     $ref: '#/components/schemas/ResponseMeta'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
-          
+
     post:
       operationId: createClient
       tags: [Clients]
@@ -2329,7 +2617,145 @@ paths:
           $ref: '#/components/responses/NotFoundError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
-    
+
+    put:
+      operationId: updateInvoice
+      tags: [Invoices]
+      summary: Update an invoice (header-only)
+      description: |
+        Updates a narrow set of header-level fields on an existing invoice.
+        Full item/client rewrites are intentionally out of scope in v1 —
+        issue a storno + a fresh invoice instead.
+
+        ## Edit guards
+
+        The endpoint rejects the update when:
+
+        - The invoice is itself a storno row — `400 invoice_is_storno`.
+        - The invoice has already been storno'd — `400 invoice_already_storned`.
+        - The invoice is paid *and* the body touches totals
+          (`items`, `currency`, `with_vat_inverted`) — `400 invoice_is_paid`.
+        - ANAF has `accepted` or `validated` the invoice via SPV —
+          `403 invoice_locked_efactura` (with `efactura_status` in the
+          error payload).
+
+        ## Field semantics
+
+        - `info` is the canonical field for free-text notes. The legacy
+          aliases `observation` and `notes` are accepted and mapped to
+          `info` server-side, but new integrations should use `info`.
+        - Row-level `price_total` / `account_amount_total` are **not**
+          accepted — line totals are derived from `quantity × price` plus
+          VAT. Send per-row components only.
+        - `exchange_rate` is only applied when the invoice currency is not
+          RON. It overrides `currency_rate` and is mirrored into every
+          `account_amount_*` field.
+        - `currency = "RON"` forces `currency_rate = 1.000` and
+          `currency_to = "RON"` regardless of `exchange_rate`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Invoice CzUid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                date_at:
+                  type: string
+                  description: ISO date or unix timestamp. Alias - `date`.
+                due_at:
+                  type: string
+                  nullable: true
+                  description: ISO date or unix timestamp. Pass empty/null to clear. Alias - `due_date`.
+                info:
+                  type: string
+                  nullable: true
+                  description: Free-text notes shown on the PDF. Accepted aliases - `observation`, `notes`.
+                client_id:
+                  type: string
+                  description: CzUid of an existing firm client; rebinds the invoice to that client's current snapshot.
+                currency:
+                  type: string
+                  description: ISO-4217 code. Passing `RON` resets `currency_rate` to 1.
+                exchange_rate:
+                  type: number
+                  description: Positive FX rate. Ignored for RON invoices. Overrides `currency_rate` and propagates to all `account_amount_*` fields.
+                series_id:
+                  type: string
+                  description: CzUid (or numeric PK) of a `firm_number` series owned by the firm. Only used when actually switching series.
+                items:
+                  type: array
+                  description: |
+                    Replace the whole line-items array. Each row accepts
+                    `description`, `quantity`, `price`, `vat_rate`,
+                    `unit`, `product_czuid`, `um_id` etc. Row-level
+                    `price_total` and `account_amount_total` are **not**
+                    accepted — they are recomputed from the components.
+                  items:
+                    $ref: '#/components/schemas/InvoiceItem'
+      responses:
+        '200':
+          description: Invoice updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data: { $ref: '#/components/schemas/Invoice' }
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403':
+          description: Invoice is locked by ANAF
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+
+    patch:
+      operationId: patchInvoice
+      tags: [Invoices]
+      summary: Partial update (alias of PUT)
+      description: Same contract as `PUT /invoices/{id}` — every field is optional and the two verbs are interchangeable.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Invoice updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data: { $ref: '#/components/schemas/Invoice' }
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403':
+          description: Invoice is locked by ANAF
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+
     delete:
       operationId: deleteInvoice
       tags: [Invoices]
@@ -2645,6 +3071,68 @@ paths:
         '401':
           $ref: '#/components/responses/UnauthorizedError'
           
+  /invoices/{id}/storno:
+    post:
+      operationId: stornoInvoice
+      tags: [Invoices]
+      summary: Storno (reverse) an invoice
+      description: |
+        Creates a reversal invoice with negated line amounts and links it to
+        the source via `storno_bill_id`. Both invoices receive a history
+        event (`TYPE_STORNO` on the source, `TYPE_STORNED` on the reversal).
+        The whole operation runs inside a DB transaction.
+
+        ## Preconditions
+        - Source invoice must be fiscal (not a draft or proforma).
+        - Source must not already be a storno (`is_storno = 0`).
+        - Source must not already have been storno'd (`storno_bill_id` unset).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Source invoice CzUid
+      responses:
+        '200':
+          description: Storno invoice created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Invoice'
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '400':
+          description: Invoice cannot be reversed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                cannot_be_storned:
+                  value:
+                    success: false
+                    error:
+                      type: invalid_request_error
+                      code: invoice_cannot_be_storned
+                      message: This invoice cannot be reversed. Only fiscal invoices can be reversed.
+                already_storned:
+                  value:
+                    success: false
+                    error:
+                      type: invalid_request_error
+                      code: invoice_already_storned
+                      message: Invoice has already been reversed
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
   /invoices/{id}/send-to-spv:
     post:
       operationId: sendInvoiceToSpv
@@ -2738,12 +3226,18 @@ paths:
           schema:
             type: string
           description: Search in name and description
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [product, service]
+          description: Filter by row type. Preferred over the legacy `is_service` flag.
         - name: is_service
           in: query
           schema:
             type: integer
             enum: [0, 1]
-          description: Filter by product type (0=product, 1=service)
+          description: Legacy filter (`0` = product, `1` = service). Prefer `type`.
         - name: is_active
           in: query
           schema:
@@ -3840,6 +4334,324 @@ paths:
         '401':
           $ref: '#/components/responses/UnauthorizedError'
           
+  # Supplier Bills endpoints (e-Factura received invoices)
+  /supplier-bills:
+    get:
+      operationId: listSupplierBills
+      tags: [Supplier Bills]
+      summary: List supplier bills
+      description: |
+        Returns supplier invoices received from the ANAF SPV inbox (e-Factura).
+        Mirrors the web view at /firm/bill-supplier with filters, totals and
+        pagination. Spans every work point under the parent company.
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - name: status
+          in: query
+          schema: { type: string, enum: [unpaid, paid, partial] }
+        - name: supplier
+          in: query
+          description: Search by supplier name or VAT id (LIKE).
+          schema: { type: string }
+        - name: search
+          in: query
+          description: Alias of `supplier` — search by CIF or supplier name.
+          schema: { type: string }
+        - name: supplier_id
+          in: query
+          description: Filter by supplier CzUid.
+          schema: { type: string }
+        - name: currency
+          in: query
+          schema: { type: string }
+        - name: invoice_type_code
+          in: query
+          schema: { type: string, enum: ['380', '381'] }
+          description: 380 = invoice, 381 = credit note.
+        - name: start_date
+          in: query
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          schema: { type: string, format: date }
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [issue_date, due_date, total, invoice_number, created_at]
+            default: issue_date
+        - name: order
+          in: query
+          schema: { type: string, enum: [asc, desc], default: desc }
+        - name: expand
+          in: query
+          description: "Comma-separated list of relations to expand. Supported: `supplier`, `expense`, `client`, `efactura_message`, `lines`."
+          schema: { type: string }
+      responses:
+        '200':
+          description: List of supplier bills
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data: { $ref: '#/components/schemas/SupplierBillList' }
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /supplier-bills/sync:
+    post:
+      operationId: syncSupplierBills
+      tags: [Supplier Bills]
+      summary: Trigger SPV sync
+      description: |
+        Pulls fresh messages from the ANAF SPV inbox, downloads any missing
+        XMLs, and imports received invoices into Contazen. Synchronous — the
+        call blocks until ANAF responds (typically 5–30s per firm). Concurrent
+        syncs for the same firm are rejected with HTTP 429.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                days:
+                  type: integer
+                  minimum: 1
+                  maximum: 60
+                  description: |
+                    How far back to fetch (1–60). When omitted, the window is
+                    chosen automatically based on the time since the last sync.
+      responses:
+        '200':
+          description: Sync result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data: { $ref: '#/components/schemas/SupplierBillSyncResult' }
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          description: A sync for this firm is already in progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: ANAF SPV call failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /supplier-bills/{id}:
+    get:
+      operationId: getSupplierBill
+      tags: [Supplier Bills]
+      summary: Get supplier bill
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: Supplier bill CzUid.
+        - name: expand
+          in: query
+          schema: { type: string }
+          description: "Defaults to `supplier,expense,client,efactura_message,lines`."
+      responses:
+        '200':
+          description: Supplier bill detail (with `supplier_balance` block)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      supplier_bill:
+                        allOf:
+                          - $ref: '#/components/schemas/SupplierBill'
+                          - type: object
+                            properties:
+                              supplier_balance:
+                                $ref: '#/components/schemas/SupplierBillBalance'
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Bill not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      operationId: deleteSupplierBill
+      tags: [Supplier Bills]
+      summary: Delete supplier bill (soft delete)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Bill marked as deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      object: { type: string, example: supplier_bill }
+                      deleted: { type: boolean }
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Bill not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /supplier-bills/{id}/mark-paid:
+    post:
+      operationId: markSupplierBillPaid
+      tags: [Supplier Bills]
+      summary: Mark supplier bill as paid
+      description: |
+        Records a payment on the supplier bill. Pass `payment_amount` lower
+        than the bill total to record a partial payment — the resulting status
+        becomes `partial`. Linked expenses are kept in sync.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupplierBillMarkPaidRequest'
+      responses:
+        '200':
+          description: Bill updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      supplier_bill: { $ref: '#/components/schemas/SupplierBill' }
+                      message: { type: string }
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Bill not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /supplier-bills/{id}/mark-unpaid:
+    post:
+      operationId: markSupplierBillUnpaid
+      tags: [Supplier Bills]
+      summary: Mark supplier bill as unpaid
+      description: Clears `payment_date`, `payment_amount`, and resets `status` to `unpaid`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Bill updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      supplier_bill: { $ref: '#/components/schemas/SupplierBill' }
+                      message: { type: string }
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Bill not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /supplier-bills/{id}/efactura-pdf:
+    get:
+      operationId: getSupplierBillEfacturaPdf
+      tags: [Supplier Bills]
+      summary: Download e-Factura PDF
+      description: |
+        Streams the ANAF e-Factura PDF for this bill. Generated on demand via
+        the ANAF public validator the first time it is requested, then cached
+        on disk. Returns 404 when the bill has no associated SPV message.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: PDF stream
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Bill not found or no e-Factura XML available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: ANAF PDF generation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   # Settings endpoint
   /settings:
     get:
@@ -4609,3 +5421,329 @@ paths:
         '400': { $ref: '#/components/responses/BadRequestError' }
         '401': { $ref: '#/components/responses/UnauthorizedError' }
         '404': { $ref: '#/components/responses/NotFoundError' }
+
+  /vat-rates:
+    get:
+      operationId: listVatRates
+      tags: [VAT Rates]
+      summary: List firm VAT rates
+      description: |
+        Returns the firm's custom `firm_vat` rows plus the full catalog of
+        Romanian rates (`available`) the firm can enable, adjusted for the
+        firm's VAT-payer type and the 2025-08-01 rate rules.
+      responses:
+        '200':
+          description: VAT rates list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  object: { type: string, enum: [list] }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/VatRate' }
+                  total: { type: integer }
+                  available:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key: { type: integer }
+                        percent: { type: number }
+                        description: { type: string }
+                        ubl_category: { type: string }
+                        reason: { type: string }
+                  default_percent: { type: number }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+    post:
+      operationId: createVatRate
+      tags: [VAT Rates]
+      summary: Add a firm-scoped VAT rate
+      description: |
+        Creates (or returns the existing) `firm_vat` row for the given
+        percent. A standard description from the Romanian catalog is applied
+        when `description` is omitted. Non-VAT-payer firms receive
+        `400 non_vat_payer`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [percent]
+              properties:
+                percent:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Rate returned (created or already present)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  object: { type: string, enum: [vat_rate] }
+                  data: { $ref: '#/components/schemas/VatRate' }
+                  created:
+                    type: boolean
+                    description: false when an equivalent rate already existed
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+
+  /vat-rates/{id}:
+    put:
+      operationId: updateVatRate
+      tags: [VAT Rates]
+      summary: Update a VAT rate description
+      description: Only `description` is mutable. `percent` is immutable because changing it would invalidate every bill line that references the rate.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: VAT rate CzUid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description: { type: string }
+      responses:
+        '200':
+          description: Rate updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  object: { type: string, enum: [vat_rate] }
+                  data: { $ref: '#/components/schemas/VatRate' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+    delete:
+      operationId: deleteVatRate
+      tags: [VAT Rates]
+      summary: Delete a firm VAT rate
+      description: Fails with `409 in_use` if the rate is still referenced by any bill or notice row.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Rate deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  object: { type: string, enum: [vat_rate] }
+                  deleted: { type: boolean }
+        '409':
+          description: Rate in use
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+
+  /currencies:
+    get:
+      operationId: listCurrencies
+      tags: [Currencies]
+      summary: List firm currencies
+      description: Returns the firm's enabled currencies plus the `available` catalog of ISO-4217 codes Contazen supports.
+      responses:
+        '200':
+          description: Currency list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  object: { type: string, enum: [list] }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Currency' }
+                  total: { type: integer }
+                  available:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        code: { type: string, example: EUR }
+                        description: { type: string }
+                  default_code: { type: string, example: RON }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+    post:
+      operationId: createCurrency
+      tags: [Currencies]
+      summary: Enable a currency for the firm
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  example: EUR
+                  description: ISO-4217 three-letter code (uppercased server-side).
+      responses:
+        '200':
+          description: Currency enabled or already present
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  object: { type: string, enum: [currency] }
+                  data: { $ref: '#/components/schemas/Currency' }
+                  created: { type: boolean }
+        '400':
+          description: Invalid or unsupported currency
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+
+  /currencies/{id}:
+    delete:
+      operationId: deleteCurrency
+      tags: [Currencies]
+      summary: Disable a currency
+      description: Fails with `409 in_use` if any bill or client still references the currency.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: Currency CzUid
+      responses:
+        '200':
+          description: Currency removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  object: { type: string, enum: [currency] }
+                  deleted: { type: boolean }
+        '409':
+          description: Currency in use
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+
+  /languages:
+    get:
+      operationId: listLanguages
+      tags: [Languages]
+      summary: List firm languages
+      description: Returns the firm's enabled bill-template languages plus the `available` catalog of supported codes. Romanian (`ro`) is always enabled and cannot be removed.
+      responses:
+        '200':
+          description: Language list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  object: { type: string, enum: [list] }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Language' }
+                  total: { type: integer }
+                  available:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        code: { type: string, example: en }
+                        description: { type: string }
+                  default_code: { type: string, example: ro }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+    post:
+      operationId: createLanguage
+      tags: [Languages]
+      summary: Enable a language for the firm
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  example: en
+                  description: Two-letter lowercase ISO-639-1 code.
+      responses:
+        '200':
+          description: Language enabled or already present
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  object: { type: string, enum: [language] }
+                  data: { $ref: '#/components/schemas/Language' }
+                  created: { type: boolean }
+        '400':
+          description: Invalid or unsupported language
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+
+  /languages/{id}:
+    delete:
+      operationId: deleteLanguage
+      tags: [Languages]
+      summary: Disable a language
+      description: Fails with `409 is_default` when removing `ro`, which is the hard-coded default.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: Language CzUid
+      responses:
+        '200':
+          description: Language removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  object: { type: string, enum: [language] }
+                  deleted: { type: boolean }
+        '409':
+          description: Default language cannot be removed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }

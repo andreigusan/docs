@@ -1,0 +1,16 @@
+---
+title: 'Enable Language'
+openapi: 'POST /languages'
+description: 'Enable a bill-template language for the firm.'
+---
+
+## Overview
+
+Adds a `firm_language` row for the given ISO-639-1 two-letter `code`. The
+server lowercases the input and validates:
+
+- `400 invalid_code` — code is not two alphabetic characters.
+- `400 unsupported_language` — code is not in `static_language`.
+
+The endpoint is idempotent: enabling an already-enabled language returns
+the existing row with `created: false`.

@@ -1,0 +1,23 @@
+---
+title: 'Sync from SPV'
+openapi: 'POST /supplier-bills/sync'
+description: 'Pull fresh supplier invoices from the ANAF SPV inbox.'
+---
+
+## Overview
+
+Triggers a synchronous SPV pull for the authenticated firm: fetches messages
+from ANAF, downloads any missing XMLs, and imports received invoices. The
+call blocks until ANAF responds — typically 5–30 seconds, occasionally more.
+
+## Concurrency
+
+A per-firm file lock prevents concurrent syncs. If a sync is already running
+for the same firm the endpoint returns HTTP **429** with
+`code: "sync_in_progress"` and a `Retry-After` header.
+
+## Choosing the window
+
+Pass `days` (1–60) to fetch a fixed window. When omitted, Contazen picks the
+window automatically based on the time since the last successful sync (1 →
+60 days).

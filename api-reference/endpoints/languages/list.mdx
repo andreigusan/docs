@@ -1,0 +1,15 @@
+---
+title: 'List Languages'
+openapi: 'GET /languages'
+description: 'List firm-enabled bill-template languages.'
+---
+
+## Overview
+
+`data` is the firm's enabled `firm_language` rows. `available` is the full
+catalog from `static_language` the firm can enable with `POST /languages`.
+`default_code` is always `ro` — Romanian is hard-coded as the default and
+cannot be removed.
+
+Use these codes as the `language` field when creating invoices to control
+which translations render on the generated PDF.

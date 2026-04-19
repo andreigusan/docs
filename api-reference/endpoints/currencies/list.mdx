@@ -1,0 +1,14 @@
+---
+title: 'List Currencies'
+openapi: 'GET /currencies'
+description: 'List firm-enabled currencies and the catalog available to enable.'
+---
+
+## Overview
+
+`data` is the set of currencies the firm has enabled for billing templates.
+`available` is the full ISO-4217 catalog (from `static_currency`) the firm
+can enable with `POST /currencies`. `default_code` is always `RON`.
+
+Currency rows expose `is_used` — if true, attempts to delete the row will be
+rejected with `409 in_use`.

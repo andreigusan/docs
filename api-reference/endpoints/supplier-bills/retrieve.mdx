@@ -1,0 +1,17 @@
+---
+title: 'Retrieve Supplier Bill'
+openapi: 'GET /supplier-bills/{id}'
+description: 'Get a single supplier bill, including supplier balance and reciprocal client.'
+---
+
+## Overview
+
+Returns one supplier bill by its CzUid. The response includes a
+`supplier_balance` block aggregating the supplier's outstanding invoices
+across all your work points, plus the next due invoice (if any).
+
+## Default expansions
+
+The detail endpoint expands `supplier`, `expense`, `client`,
+`efactura_message`, and `lines` by default. Pass `expand=` (empty) to skip
+all expansions, or `expand=supplier,lines` to choose a subset.

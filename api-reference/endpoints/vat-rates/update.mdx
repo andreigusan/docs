@@ -1,0 +1,14 @@
+---
+title: 'Update VAT Rate'
+openapi: 'PUT /vat-rates/{id}'
+description: 'Update the description of a firm VAT rate.'
+---
+
+## Overview
+
+Only `description` is mutable. `percent` is immutable — changing it would
+silently invalidate every bill line that already references this rate and
+break the historical audit trail.
+
+To replace a rate with a new percent, add a new rate and migrate referencing
+invoices manually.

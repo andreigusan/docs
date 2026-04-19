@@ -1,0 +1,23 @@
+---
+title: 'Create VAT Rate'
+openapi: 'POST /vat-rates'
+description: 'Add a firm-scoped custom VAT rate.'
+---
+
+## Overview
+
+Adds a custom VAT rate row to `firm_vat`. If a row with the same `percent`
+already exists, the existing row is returned with `created: false` — the
+endpoint is idempotent by percent.
+
+When `description` is omitted, the standard description from
+`FirmVat::getOptions()` is used for matching percents (e.g. `19% - TVA`);
+otherwise a generic `<percent>% - TVA` label is generated.
+
+## Preconditions
+
+- `percent` must be between `0` and `100`.
+- Non-VAT-payer firms (`vat_type = none` on the parent) get `400
+  non_vat_payer` — standard rates from the catalog still appear in the
+  `available` array returned by `GET /vat-rates`, but custom rows are
+  rejected.

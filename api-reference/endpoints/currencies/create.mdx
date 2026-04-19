@@ -1,0 +1,16 @@
+---
+title: 'Enable Currency'
+openapi: 'POST /currencies'
+description: 'Enable a currency for the firm.'
+---
+
+## Overview
+
+Adds a `firm_currency` row for the given ISO-4217 `code`. The server
+uppercases the input and validates against the static catalog:
+
+- `400 invalid_code` — code is not a three-letter alphabetic string.
+- `400 unsupported_currency` — code is not present in `static_currency`.
+
+The endpoint is idempotent: enabling a currency that is already enabled
+returns the existing row with `created: false`.

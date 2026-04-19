@@ -1,5 +1,19 @@
 ---
 title: 'Get Invoice History'
 openapi: 'GET /invoices/{id}/history'
-description: 'Audit trail of all changes to a fiscal invoice'
+description: 'Audit trail of all changes to a fiscal invoice.'
 ---
+
+## Overview
+
+Returns the ordered `firm_history` events recorded against a fiscal
+invoice — create, update, storno, send, void, SPV submission, payment, etc.
+Each entry identifies the acting user.
+
+## Actor attribution
+
+When the request is made with a mobile JWT, the acting user is the JWT
+subject. When made with an API key, the attributed user is the key's owner
+(the `user_id` stamped on the `api_key` row). Entries prior to 2026-04-13
+may report a system `user_id` of `0` — those predate the history
+attribution fix and cannot be retroactively repaired.

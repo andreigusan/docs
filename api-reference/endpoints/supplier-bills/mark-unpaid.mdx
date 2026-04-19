@@ -1,0 +1,11 @@
+---
+title: 'Mark Bill as Unpaid'
+openapi: 'POST /supplier-bills/{id}/mark-unpaid'
+description: 'Reset a supplier bill to unpaid status, clearing payment fields.'
+---
+
+## Overview
+
+Clears the bill's `payment_date` and `payment_amount`, sets `status` to
+`unpaid`, and (if the bill is linked to an expense) flips that expense back
+to unpaid.

@@ -1,0 +1,56 @@
+---
+title: 'Update Invoice'
+openapi: 'PUT /invoices/{id}'
+description: 'Update header-level fields on an existing invoice.'
+---
+
+## Overview
+
+The update endpoint intentionally has a narrow scope: it accepts only
+header fields plus an optional full-item rewrite. It does **not** support
+spot-editing a single line — send the whole `items` array if you need to
+change one row.
+
+If you need a structural change to a fiscal invoice (different client,
+wholesale repricing, etc.), issue `POST /invoices/{id}/storno` followed by a
+fresh `POST /invoices` rather than mutating the original.
+
+## Legacy field aliases
+
+Several request fields have aliases that remain accepted for backwards
+compatibility. New integrations should prefer the canonical names:
+
+| Canonical | Legacy aliases |
+|---|---|
+| `info` | `observation`, `notes` |
+| `date_at` | `date` |
+| `due_at` | `due_date` |
+
+## Row-level totals are derived, not accepted
+
+Row objects inside `items[]` **must not** carry `price_total` or
+`account_amount_total` — send the components (`quantity`, `price`,
+`vat_rate`) and the server recomputes both. Sending totals directly used to
+work in earlier builds and has been a silent source of rounding drift; the
+fields are now ignored.
+
+## Exchange-rate handling
+
+When `currency` is `RON`, `currency_rate` is forced to `1.000` regardless
+of what you send. For non-RON invoices, a positive `exchange_rate`
+propagates into every `account_amount_*` field on both the invoice header
+and its rows — so the RON-equivalent totals stay consistent with the
+foreign-currency totals shown on the PDF.
+
+## Edit locks
+
+Four conditions block an edit:
+
+- `400 invoice_is_storno` — the row is itself a reversal.
+- `400 invoice_already_storned` — the row has been reversed.
+- `400 invoice_is_paid` — paid invoice cannot have totals changed
+  (non-total fields like `info` and `due_at` still work).
+- `403 invoice_locked_efactura` — ANAF has accepted or validated the
+  invoice via SPV. The error payload includes `efactura_status`.
+
+`PUT` and `PATCH` are interchangeable — both route to the same handler.

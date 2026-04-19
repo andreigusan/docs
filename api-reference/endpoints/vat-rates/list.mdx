@@ -1,0 +1,19 @@
+---
+title: 'List VAT Rates'
+openapi: 'GET /vat-rates'
+description: 'List firm-scoped VAT rates plus the full Romanian catalog.'
+---
+
+## Overview
+
+Returns two sets of rates:
+
+- **`data`** — custom `firm_vat` rows the firm has added (typically used for
+  non-standard or legacy percents).
+- **`available`** — the full Romanian VAT catalog filtered for the firm's
+  VAT-payer type, including the 2025-08-01 rate changes.
+
+Mobile and web invoice forms merge the two and dedupe by `percent`.
+
+`default_percent` mirrors `FirmVat::getDefaultPercent()` and is the rate a
+freshly-drafted invoice row should use.

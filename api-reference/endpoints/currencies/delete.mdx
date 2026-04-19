@@ -1,0 +1,11 @@
+---
+title: 'Disable Currency'
+openapi: 'DELETE /currencies/{id}'
+description: 'Remove a currency from the firm.'
+---
+
+## Overview
+
+Removes a `firm_currency` row. Fails with `409 in_use` when any bill,
+client, or product still references the currency. RON can be removed only
+if nothing references it — in practice it always stays enabled.

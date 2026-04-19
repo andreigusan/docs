@@ -1,0 +1,28 @@
+---
+title: 'List Supplier Bills'
+openapi: 'GET /supplier-bills'
+description: 'List supplier invoices received from the ANAF SPV inbox (e-Factura).'
+---
+
+## Overview
+
+Returns the supplier invoices that Contazen has imported from your ANAF SPV
+inbox. This is the API equivalent of the **Facturi primite de la furnizori**
+view in the web app.
+
+Results span every work point under your parent company. Use the filter
+parameters to narrow by status, date range, supplier (CIF or name), or
+currency.
+
+## Totals
+
+The response includes a `totals` block with both global aggregates (count,
+tax-exclusive, tax, tax-inclusive, paid, unpaid) and a `by_currency`
+breakdown — supplier bills frequently mix RON with foreign currencies and
+summing across them produces meaningless numbers.
+
+## Reciprocal client
+
+When a row's supplier CIF matches one of your firm's clients, `client_id` is
+populated with that client's CzUid. This makes it easy to surface a "your
+supplier is also your client" hint in the UI.

@@ -1,0 +1,11 @@
+---
+title: 'Delete Supplier Bill'
+openapi: 'DELETE /supplier-bills/{id}'
+description: 'Soft-delete a supplier bill (deleted_at timestamp).'
+---
+
+## Overview
+
+Performs a soft delete by setting `deleted_at` to the current timestamp.
+Deleted bills no longer appear in list or retrieve responses (they return
+404). The linked expense is left untouched.

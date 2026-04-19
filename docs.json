@@ -67,12 +67,14 @@
                       "api-reference/endpoints/invoices/list",
                       "api-reference/endpoints/invoices/create",
                       "api-reference/endpoints/invoices/retrieve",
+                      "api-reference/endpoints/invoices/update",
                       "api-reference/endpoints/invoices/send",
                       "api-reference/endpoints/invoices/send-to-spv",
                       "api-reference/endpoints/invoices/pay",
                       "api-reference/endpoints/invoices/download-pdf",
                       "api-reference/endpoints/invoices/void",
                       "api-reference/endpoints/invoices/unvoid",
+                      "api-reference/endpoints/invoices/storno",
                       "api-reference/endpoints/invoices/delete",
                       "api-reference/endpoints/invoices/totals",
                       "api-reference/endpoints/invoices/stats",
@@ -150,6 +152,18 @@
                     ]
                   },
                   {
+                    "group": "Supplier Bills",
+                    "pages": [
+                      "api-reference/endpoints/supplier-bills/list",
+                      "api-reference/endpoints/supplier-bills/sync",
+                      "api-reference/endpoints/supplier-bills/retrieve",
+                      "api-reference/endpoints/supplier-bills/mark-paid",
+                      "api-reference/endpoints/supplier-bills/mark-unpaid",
+                      "api-reference/endpoints/supplier-bills/efactura-pdf",
+                      "api-reference/endpoints/supplier-bills/delete"
+                    ]
+                  },
+                  {
                     "group": "Company Lookup",
                     "pages": [
                       "api-reference/endpoints/company-lookup/lookup"
@@ -159,6 +173,31 @@
                     "group": "E-Factura",
                     "pages": [
                       "api-reference/endpoints/efactura/status"
+                    ]
+                  },
+                  {
+                    "group": "VAT Rates",
+                    "pages": [
+                      "api-reference/endpoints/vat-rates/list",
+                      "api-reference/endpoints/vat-rates/create",
+                      "api-reference/endpoints/vat-rates/update",
+                      "api-reference/endpoints/vat-rates/delete"
+                    ]
+                  },
+                  {
+                    "group": "Currencies",
+                    "pages": [
+                      "api-reference/endpoints/currencies/list",
+                      "api-reference/endpoints/currencies/create",
+                      "api-reference/endpoints/currencies/delete"
+                    ]
+                  },
+                  {
+                    "group": "Languages",
+                    "pages": [
+                      "api-reference/endpoints/languages/list",
+                      "api-reference/endpoints/languages/create",
+                      "api-reference/endpoints/languages/delete"
                     ]
                   },
                   {
