@@ -1,0 +1,21 @@
+---
+title: 'List Reservations'
+openapi: 'GET /invoice-series/{id}/reservations'
+description: 'List pending number reservations owned by the caller mobile device.'
+---
+
+## Overview
+
+Returns the reservation pool for the authenticated device on this series. Used by the mobile app to reconcile its local pool against the server's view after a long offline period or a local database wipe.
+
+Only reservations where `device_id` matches the caller's `user_session.device_id` AND `status = 'pending'` are returned. Expired / consumed / released rows are omitted — those are not usable for new invoices.
+
+## Response
+
+<ResponseField name="data" type="array">
+  Same shape as [Reserve Numbers](/api-reference/endpoints/invoice-series/reserve-numbers).
+</ResponseField>
+
+<ResponseField name="total" type="integer">
+  Number of usable reservations the calling device currently owns on this series.
+</ResponseField>

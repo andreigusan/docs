@@ -1,0 +1,27 @@
+---
+title: 'Unlock Series'
+openapi: 'POST /invoice-series/{id}/unlock'
+description: 'Release the mobile-device lock on an invoice series.'
+---
+
+## Overview
+
+Removes the mobile-device binding on a series. After unlocking, any authenticated caller (web, API key, or mobile) can emit invoices on the series again.
+
+- The mobile device that owns the lock can always unlock.
+- A different mobile device needs `force: true` in the body *and* firm-admin rights to override.
+- Legacy API-key callers bypass the device check and can force-unlock unconditionally (intended for admin tooling).
+
+## Body
+
+<ParamField body="force" type="boolean" default="false">
+  Required when a caller that does not own the lock wants to break it. Without `force`, the server returns `series_locked_other_device`.
+</ParamField>
+
+## Response
+
+Returns the updated series object. `is_locked` is `false` and `lock` is `null`.
+
+<Warning>
+  Any offline reservations the previous device had not yet synced are still valid: the lock only gates *new* invoice creation. If a locked device has queued invoices in its outbox, coordinate with the user before force-unlocking — their next sync will still succeed if their reservation tokens are still pending on the server.
+</Warning>

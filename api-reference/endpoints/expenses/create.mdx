@@ -8,25 +8,45 @@ description: 'Create a new expense record with minimal required fields and smart
 
 The Create Expense endpoint allows you to add a new expense to your firm's records with just 4 required fields. The API provides smart defaults for all optional fields, making expense creation quick and simple.
 
+Two save shapes are supported:
+
+- **Flat** — send `amount` + `vat` for a single-line expense. Simplest path; covers most utility bills and single-rate receipts.
+- **Itemized** — send `items[]` when the receipt has multiple line items or mixes VAT rates. The server derives `amount` / `vat` / `vat_breakdown` from the lines. See [Expense Lines & VAT Breakdown](/concepts/expense-lines) for the full model.
+
+`amount` + `vat` are required **only** on the flat path — when `items` is present they become optional and are ignored in favor of the line-derived totals.
+
+## Duplicate Detection
+
+Before persisting, the API scans your firm's existing expenses for a likely duplicate (same supplier + reference, or same supplier + date + amount within a small tolerance). If a match is found, the request is rejected with **HTTP 409** and a payload describing the existing expense — no row is created.
+
+To override and force creation anyway, send `?force=1` on the request URL.
+
+Clients that want to surface a confirmation dialog to the user before POSTing can pre-check with [`POST /expenses/check-duplicate`](./check-duplicate) using the same supplier / reference / amount fields; it returns the same `duplicate` shape without writing anything.
+
+## Query Parameters
+
+<ParamField query="force" type="integer" default="0">
+  Set to `1` to bypass duplicate detection and persist the expense even when a likely duplicate exists.
+</ParamField>
+
 ## Request Body
 
-### Required Fields (Only 4)
+### Required Fields
 
 <ParamField body="supplier_id" type="string" required>
-  The CzUid of the supplier for this expense
-</ParamField>
-
-<ParamField body="amount" type="number" required>
-  The expense amount (positive number)
-</ParamField>
-
-<ParamField body="vat" type="integer" required>
-  VAT percentage (accepted values: 0, 5, 9, 11, 19, 21)
-  - 21% is the standard rate in Romania
+  The CzUid of the supplier for this expense. Alternative: omit and send `supplier_data` to auto-create.
 </ParamField>
 
 <ParamField body="date" type="string" required format="date">
   Expense date in YYYY-MM-DD format
+</ParamField>
+
+<ParamField body="amount" type="number">
+  The expense amount (positive number). **Required** on the flat path; ignored when `items` is sent.
+</ParamField>
+
+<ParamField body="vat" type="integer">
+  VAT percentage (accepted values: 0, 5, 9, 11, 19, 21). **Required** on the flat path; when `items` is sent the server sets this to the dominant rate.
 </ParamField>
 
 ### Optional Fields with Defaults
@@ -93,6 +113,43 @@ The Create Expense endpoint allows you to add a new expense to your firm's recor
 
 <ParamField body="currency_rate" type="number">
   Exchange rate (required if with_currency_exchange is true)
+</ParamField>
+
+### Itemized Lines
+
+<ParamField body="items" type="array">
+  Array of line rows. When present and non-empty, the server persists real
+  line records and derives `amount` / `vat` / `vat_breakdown` from them —
+  the header-level `amount` and `vat` request fields are ignored.
+
+  Each item is an object with:
+  - `name` (string, required) — display name for the line
+  - `quantity` (number, required, > 0) — supports fractional quantities
+  - `unit_price` (number, required) — **net** unit price (excluding VAT)
+  - `vat_rate` (integer, required) — one of 0, 5, 9, 11, 19, 21
+  - `description` (string) — optional
+  - `unit_code` (string) — optional UN/ECE code (e.g. `H87`, `KGM`)
+  - `category_id` (string) — optional per-line category override
+  - `product_id` (string) — optional link to firm's product catalog
+
+  See [Expense Lines & VAT Breakdown](/concepts/expense-lines) for rounding rules and multi-VAT handling.
+</ParamField>
+
+<ParamField body="vat_breakdown" type="array">
+  Per-rate breakdown for multi-VAT receipts saved on the flat path (no
+  `items`). Each entry: `{ rate, net, vat_amount, gross }`. The server stores
+  the array as JSON on the row when two or more distinct rates are present.
+  Ignored when `items` is supplied — in that case the breakdown is derived.
+</ParamField>
+
+<ParamField body="supplier_data" type="object">
+  Auto-create a supplier when `supplier_id` is not supplied. Useful when
+  ingesting supplier data from external sources where the firm hasn't
+  billed with the supplier before.
+
+  Shape: `{ name: string, cui?: string }`. If a supplier with the same CUI
+  (or name when CUI is missing) already exists on the firm, it's reused
+  instead of creating a duplicate.
 </ParamField>
 
 ## Response
@@ -196,6 +253,21 @@ curl -X POST "https://api.contazen.ro/v1/expenses" \
     "currency": "EUR",
     "due_date": "2024-02-15",
     "is_paid": true
+  }'
+```
+
+```bash Itemized (multi-VAT receipt)
+curl -X POST "https://api.contazen.ro/v1/expenses" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "supplier_id": "sup_xyz789",
+    "date": "2026-02-19",
+    "currency": "RON",
+    "items": [
+      { "name": "Meniul zilei",    "quantity": 3, "unit_price": 28.74, "vat_rate": 11 },
+      { "name": "Caserolă meniu",  "quantity": 6, "unit_price": 1.24,  "vat_rate": 21 }
+    ]
   }'
 ```
 
@@ -332,6 +404,25 @@ echo 'Created expense ID: ' . $data['expense']['id'];
     "fields": {
       "supplier_id": "Supplier is required",
       "amount": "Amount must be greater than 0"
+    }
+  }
+}
+```
+
+```json 409 - Duplicate Expense
+{
+  "success": false,
+  "error": {
+    "message": "Duplicate expense detected",
+    "type": "invalid_request_error",
+    "code": "duplicate_expense",
+    "duplicate": {
+      "id": "d8kZ3Qa",
+      "reference": "FX 26101044850",
+      "date": "2026-02-24",
+      "amount": 584.39,
+      "currency": "RON",
+      "match_type": "supplier_reference"
     }
   }
 }

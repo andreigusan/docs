@@ -157,6 +157,55 @@ The Retrieve Expense endpoint allows you to get complete details about a specifi
       </Expandable>
     </ResponseField>
 
+    <ResponseField name="items" type="array">
+      Line rows for the expense. Always at least one entry — legacy flat
+      expenses get a single synthesized line built from the header totals
+      so API consumers can render a uniform table.
+
+      See [Expense Lines & VAT Breakdown](/concepts/expense-lines) for the
+      full model.
+
+      <Expandable title="Line Object">
+        <ResponseField name="id" type="integer">Line row ID (0 for synthesized legacy lines)</ResponseField>
+        <ResponseField name="line_index" type="integer">Zero-based position</ResponseField>
+        <ResponseField name="name" type="string">Display name</ResponseField>
+        <ResponseField name="description" type="string" nullable>Optional detail</ResponseField>
+        <ResponseField name="quantity" type="number">Line quantity</ResponseField>
+        <ResponseField name="unit_code" type="string" nullable>UN/ECE unit (e.g. `H87`)</ResponseField>
+        <ResponseField name="unit_price" type="number">Net unit price</ResponseField>
+        <ResponseField name="vat_rate" type="integer">VAT percent for this line</ResponseField>
+        <ResponseField name="amount_wvat" type="number">Line net (2dp, `quantity × unit_price` rounded)</ResponseField>
+        <ResponseField name="amount_vat" type="number">Line VAT (2dp)</ResponseField>
+        <ResponseField name="amount" type="number">Line gross (2dp)</ResponseField>
+        <ResponseField name="category_id" type="string" nullable>Per-line category override</ResponseField>
+        <ResponseField name="product_id" type="string" nullable>Linked product CzUid</ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="vat_breakdown" type="array" nullable>
+      Per-rate VAT tranches when the receipt mixes two or more rates.
+      `null` for single-rate expenses.
+
+      <Expandable title="Breakdown Entry">
+        <ResponseField name="rate" type="integer">VAT percent</ResponseField>
+        <ResponseField name="net" type="number">Sum of nets at this rate</ResponseField>
+        <ResponseField name="vat_amount" type="number">Sum of VAT at this rate</ResponseField>
+        <ResponseField name="gross" type="number">Sum of gross at this rate</ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="category_source" type="string" nullable>
+      How the category was assigned: `ai` (auto-classified), `supplier`
+      (inherited from the supplier's default), or `manual`. `null` on
+      expenses without a category or legacy rows where provenance wasn't
+      recorded.
+    </ResponseField>
+
+    <ResponseField name="category_confidence" type="number" nullable>
+      Auto-classifier confidence in the 0–1 range when
+      `category_source === 'ai'`. `null` otherwise.
+    </ResponseField>
+
     <ResponseField name="efactura" type="object">
       Populated when the expense was imported from the ANAF e-Factura SPV
       inbox. `null` for manually created expenses.
@@ -286,6 +335,26 @@ print_r($data['expense']);
       "url": "https://api.contazen.ro/v1/files/download/att_def456",
       "type": "pdf"
     },
+    "items": [
+      {
+        "id": 4201,
+        "line_index": 0,
+        "name": "Office supplies",
+        "description": null,
+        "quantity": 1,
+        "unit_code": null,
+        "unit_price": 200.00,
+        "vat_rate": 19,
+        "amount_wvat": 200.00,
+        "amount_vat": 38.00,
+        "amount": 238.00,
+        "category_id": null,
+        "product_id": null
+      }
+    ],
+    "vat_breakdown": null,
+    "category_source": "manual",
+    "category_confidence": null,
     "efactura": {
       "supplier_invoice_id": "si_abc123",
       "invoice_number": "119079",

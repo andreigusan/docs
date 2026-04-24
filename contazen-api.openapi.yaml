@@ -765,6 +765,21 @@ components:
         series_id:
           type: string
           description: Invoice series CzUid
+        reservation_token:
+          type: string
+          description: |
+            Offline-mode only. Token returned by
+            [`POST /invoice-series/{id}/reserve-numbers`](/api-reference/endpoints/invoice-series/reserve-numbers).
+            When supplied, the server uses the reservation's pre-allocated
+            number instead of calling `nextNumber()`, and flips the
+            reservation to `consumed`. Must match the same `series_id` and
+            belong to the caller's device. See [Offline Mode](/concepts/offline-mode).
+        force_chronology:
+          type: boolean
+          default: true
+          description: |
+            Set to `false` to bypass the chronology check when syncing an
+            offline draft dated before the last invoice on the series.
         date:
           type: string
           format: date
@@ -1208,13 +1223,151 @@ components:
               type: string
               nullable: true
               description: Bearer-authenticated URL that streams the e-Factura PDF; regenerated on demand when missing
+        items:
+          type: array
+          description: |
+            Line rows for the expense. Always at least one entry — legacy flat
+            expenses get a single synthesized line built from the header totals
+            so API consumers can render a uniform table. Send `items` on
+            create/update to persist real multi-line rows.
+          items:
+            $ref: '#/components/schemas/ExpenseLine'
+        vat_breakdown:
+          type: array
+          nullable: true
+          description: |
+            Per-rate VAT tranches when the receipt mixes two or more rates.
+            `null` for single-rate expenses.
+          items:
+            $ref: '#/components/schemas/ExpenseVatBreakdownEntry'
+        category_source:
+          type: string
+          nullable: true
+          enum: [ai, supplier, manual]
+          description: |
+            How the category was assigned. `null` on uncategorized expenses
+            or legacy rows where provenance wasn't recorded.
+        category_confidence:
+          type: number
+          nullable: true
+          minimum: 0
+          maximum: 1
+          description: Auto-classifier confidence when category_source is 'ai'.
         created_at:
           type: string
           format: date-time
         updated_at:
           type: string
           format: date-time
-          
+
+    ExpenseLine:
+      type: object
+      required:
+        - id
+        - line_index
+        - name
+        - quantity
+        - unit_price
+        - vat_rate
+        - amount_wvat
+        - amount_vat
+        - amount
+      properties:
+        id:
+          type: integer
+          description: Line row ID. `0` for synthesized legacy lines.
+        line_index:
+          type: integer
+          description: Zero-based position within the expense.
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        quantity:
+          type: number
+          description: Supports fractional quantities (e.g. 0.5 kg).
+        unit_code:
+          type: string
+          nullable: true
+          description: Optional UN/ECE unit code (e.g. H87, KGM).
+        unit_price:
+          type: number
+          description: Net unit price (excluding VAT).
+        vat_rate:
+          type: integer
+          enum: [0, 5, 9, 11, 19, 21]
+        amount_wvat:
+          type: number
+          description: Line net, 2dp, `round(quantity * unit_price, 2)`.
+        amount_vat:
+          type: number
+          description: Line VAT, 2dp, `round(amount_wvat * vat_rate / 100, 2)`.
+        amount:
+          type: number
+          description: Line gross, 2dp, `amount_wvat + amount_vat`.
+        category_id:
+          type: string
+          nullable: true
+          description: Optional per-line category override (falls back to expense-level category).
+        product_id:
+          type: string
+          nullable: true
+          description: Optional link to a product in the firm's catalog.
+
+    ExpenseVatBreakdownEntry:
+      type: object
+      required:
+        - rate
+        - vat_amount
+      properties:
+        rate:
+          type: integer
+          enum: [0, 5, 9, 11, 19, 21]
+        net:
+          type: number
+          nullable: true
+          description: Sum of line nets at this rate (2dp).
+        vat_amount:
+          type: number
+          description: Sum of line VATs at this rate (2dp).
+        gross:
+          type: number
+          nullable: true
+          description: Sum of line gross values at this rate (2dp).
+
+    ExpenseLineInput:
+      type: object
+      required:
+        - name
+        - quantity
+        - unit_price
+        - vat_rate
+      properties:
+        name:
+          type: string
+        quantity:
+          type: number
+          minimum: 0.0001
+        unit_price:
+          type: number
+          description: Net unit price (excluding VAT).
+        vat_rate:
+          type: integer
+          enum: [0, 5, 9, 11, 19, 21]
+        description:
+          type: string
+          nullable: true
+        unit_code:
+          type: string
+          nullable: true
+        category_id:
+          type: string
+          nullable: true
+        product_id:
+          type: string
+          nullable: true
+
     ExpenseList:
       type: object
       allOf:
@@ -1255,26 +1408,57 @@ components:
     ExpenseCreateRequest:
       type: object
       required:
-        - supplier_id
-        - amount
-        - vat
         - date
+      description: |
+        Either `supplier_id` or `supplier_data` must be provided. Either
+        (`amount` + `vat`) or `items[]` must be provided — when `items` is
+        sent the header `amount`/`vat` request fields are ignored and the
+        server derives them from the lines.
       properties:
         supplier_id:
           type: string
-          description: Supplier CzUid (required)
+          description: Supplier CzUid. Omit when sending `supplier_data` to auto-create.
+        supplier_data:
+          type: object
+          description: |
+            Auto-create a supplier when `supplier_id` is missing. If a
+            supplier with the same CUI (or name when CUI is missing) already
+            exists on the firm, it is reused instead of creating a duplicate.
+          required:
+            - name
+          properties:
+            name:
+              type: string
+            cui:
+              type: string
+              nullable: true
         amount:
           type: number
           minimum: 0.01
-          description: Amount (required, positive number)
+          description: Amount (positive number). Required on the flat path; ignored when `items` is sent.
         vat:
           type: integer
           enum: [0, 5, 9, 11, 19, 21]
-          description: "VAT percentage (required - accepts: 0, 5, 9, 11, 19, 21)"
+          description: "VAT percentage. Required on the flat path; ignored when `items` is sent."
         date:
           type: string
           format: date
           description: Expense date (required, Y-m-d format)
+        items:
+          type: array
+          description: |
+            Line rows. When present and non-empty, the server persists real
+            line records and derives `amount` / `vat` / `vat_breakdown` from
+            them. See the Expense Lines concept for rounding rules.
+          items:
+            $ref: '#/components/schemas/ExpenseLineInput'
+        vat_breakdown:
+          type: array
+          description: |
+            Per-rate VAT tranches for multi-VAT receipts saved on the flat
+            path. Supply two or more entries. Ignored when `items` is sent.
+          items:
+            $ref: '#/components/schemas/ExpenseVatBreakdownEntry'
         currency:
           type: string
           default: RON
@@ -1331,6 +1515,11 @@ components:
           
     ExpenseUpdateRequest:
       type: object
+      description: |
+        All fields optional. Sending `items` REPLACES all existing lines —
+        send the full desired set, not a diff. Omit `items` to leave lines
+        untouched. To convert an itemized expense back to flat, send
+        `items: []` alongside new `amount` + `vat`.
       properties:
         supplier_id:
           type: string
@@ -1374,6 +1563,22 @@ components:
           type: string
         currency_rate:
           type: number
+        items:
+          type: array
+          description: |
+            Replace all line rows. When present, the server re-derives
+            `amount` / `vat` / `vat_breakdown` from the lines and ignores
+            the corresponding header fields on the body. Empty array
+            (`[]`) clears the lines.
+          items:
+            $ref: '#/components/schemas/ExpenseLineInput'
+        vat_breakdown:
+          type: array
+          description: |
+            Update the per-rate breakdown for flat-path multi-VAT receipts.
+            Ignored when `items` is sent.
+          items:
+            $ref: '#/components/schemas/ExpenseVatBreakdownEntry'
           
     ExpenseCategory:
       type: object
@@ -1912,11 +2117,82 @@ components:
         is_used:
           type: boolean
           description: Whether any documents have been issued with this series
+        is_locked:
+          type: boolean
+          description: |
+            True when this series is bound to a specific mobile device. While
+            locked, only that device can emit invoices on the series (online
+            or via pre-reserved numbers while offline). See
+            [Offline Mode](/concepts/offline-mode).
+        lock:
+          $ref: '#/components/schemas/InvoiceSeriesLock'
+          nullable: true
         year:
           type: integer
         created_at:
           type: integer
           description: Unix timestamp
+
+    InvoiceSeriesLock:
+      type: object
+      description: Mobile-device binding metadata. `null` when the series is unlocked.
+      properties:
+        device_id:
+          type: string
+          description: Stable device identifier (persisted on the mobile app).
+        session_id:
+          type: integer
+          nullable: true
+          description: user_session.id that created the lock.
+        user_id:
+          type: integer
+          nullable: true
+        device_name:
+          type: string
+          nullable: true
+        device_platform:
+          type: string
+          nullable: true
+          description: ios, android, or web.
+        locked_at:
+          type: integer
+          nullable: true
+          description: Unix timestamp (seconds)
+
+    NumberReservation:
+      type: object
+      description: Pre-allocated invoice number held for a mobile device.
+      properties:
+        object:
+          type: string
+          example: number_reservation
+        token:
+          type: string
+          description: Opaque token — pass as `reservation_token` on POST /invoices.
+        series_id:
+          type: string
+          nullable: true
+          description: CzUid of the series the reservation belongs to.
+        number:
+          type: integer
+          description: The pre-allocated `number_idx` within the series.
+        status:
+          type: string
+          enum: [pending, consumed, released, expired]
+        device_id:
+          type: string
+        reserved_at:
+          type: integer
+          nullable: true
+        expires_at:
+          type: integer
+          nullable: true
+        consumed_at:
+          type: integer
+          nullable: true
+        client_local_uuid:
+          type: string
+          nullable: true
 
     BankAccount:
       type: object
@@ -5049,6 +5325,235 @@ paths:
           $ref: '#/components/responses/NotFoundError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+
+  /invoice-series/{id}/lock:
+    post:
+      operationId: lockInvoiceSeries
+      tags: [Invoice Series]
+      summary: Lock series to mobile device
+      description: |
+        Bind the series to the calling mobile device so only that device can
+        issue invoices against it. Requires a mobile JWT session whose backing
+        `user_session` has a non-empty `device_id`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Series locked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/InvoiceSeries'
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          description: Series is already locked to another device
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /invoice-series/{id}/unlock:
+    post:
+      operationId: unlockInvoiceSeries
+      tags: [Invoice Series]
+      summary: Unlock series
+      description: |
+        Release the mobile-device lock. The owning device can always unlock;
+        other callers must pass `force: true` and have admin rights.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                force:
+                  type: boolean
+                  default: false
+                  description: Override the same-device rule when unlocking from another device.
+      responses:
+        '200':
+          description: Series unlocked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/InvoiceSeries'
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: Locked to another device and `force` not supplied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /invoice-series/{id}/reserve-numbers:
+    post:
+      operationId: reserveInvoiceSeriesNumbers
+      tags: [Invoice Series]
+      summary: Pre-allocate numbers for offline emission
+      description: |
+        Returns `count` reservation tokens. Each token corresponds to a
+        pre-allocated invoice number on the series. The mobile device uses
+        the tokens to emit invoices while offline — passing
+        `reservation_token` to `POST /invoices` consumes the reservation and
+        assigns its pre-allocated number instead of calling `nextNumber()`.
+
+        Requires the series to already be locked to the calling device.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                count:
+                  type: integer
+                  minimum: 1
+                  maximum: 50
+                  default: 10
+      responses:
+        '201':
+          description: Reservations created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      object:
+                        type: string
+                        example: list
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/NumberReservation'
+                      total:
+                        type: integer
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '409':
+          description: Series is not locked to this device
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /invoice-series/{id}/reservations:
+    get:
+      operationId: listInvoiceSeriesReservations
+      tags: [Invoice Series]
+      summary: List pending reservations for this device
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reservation list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      object:
+                        type: string
+                        example: list
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/NumberReservation'
+                      total:
+                        type: integer
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /invoice-series/reservations/{token}/release:
+    post:
+      operationId: releaseInvoiceSeriesReservation
+      tags: [Invoice Series]
+      summary: Release an unused reservation
+      description: |
+        Flip a pending reservation to `released`. The pre-allocated number is
+        not returned to the pool — it becomes a documented gap.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reservation released
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/NumberReservation'
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: Reservation belongs to another device
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
 
   /bank-accounts:
     get:

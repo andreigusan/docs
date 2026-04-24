@@ -1,0 +1,124 @@
+---
+title: 'Offline Mode & Mobile Series Lock'
+description: 'How the Contazen mobile app issues invoices with correct, gapless numbers while offline.'
+---
+
+## The problem
+
+An invoice number sequence must be **gapless and non-duplicated** to pass a fiscal audit. That is hard when:
+
+- The mobile app is in airplane mode or has a weak signal and still needs to issue a receipt.
+- The same firm has a web user who could emit an invoice on the same series between the time the phone reserves a number and the time it actually syncs.
+
+Contazen solves both with a **device-bound lock** on the invoice series plus **pre-allocated reservations** carried on the device.
+
+## How it works
+
+```mermaid
+sequenceDiagram
+    participant M as Mobile app
+    participant A as API
+    participant D as DB
+
+    M->>A: POST /invoice-series/{id}/lock (mobile JWT)
+    A->>D: UPDATE firm_number SET locked_device_id = ?
+    A-->>M: series.lock = { device_id, ... }
+
+    M->>A: POST /invoice-series/{id}/reserve-numbers {count:10}
+    A->>D: BEGIN; nextNumber() x10; INSERT firm_number_reservation x10; COMMIT
+    A-->>M: [ {token, number:101}, {token, number:102}, ... ]
+
+    Note over M: Phone goes offline — user issues 3 invoices.<br/>App pops tokens 101/102/103 from local pool.
+
+    M->>A: POST /invoices { reservation_token, number, ... }
+    A->>D: find reservation → pending → set invoice.number_idx = reservation.number_idx
+    A->>D: firm_number_reservation.status = consumed
+    A-->>M: invoice created with number 101
+```
+
+### Lock a series
+
+[`POST /invoice-series/{id}/lock`](/api-reference/endpoints/invoice-series/lock) binds the series to the calling mobile device. While locked:
+
+- Only that device can call `POST /invoices` with `series_id` equal to this series.
+- Only that device can request reservations.
+- Web / API-key callers that try to emit get `series_locked_to_device` (403).
+
+Unlocking requires either the same device or `force: true` from an admin.
+
+### Pre-allocate numbers
+
+The mobile app keeps a small pool (10 by default) of reservations in local storage. It tops the pool up whenever online and usage drops below 3:
+
+```bash
+POST /invoice-series/inv_abc/reserve-numbers
+Authorization: Bearer {jwt}
+Content-Type: application/json
+
+{ "count": 10 }
+```
+
+The response carries `{token, number}` pairs. The app stores them in SQLite alongside each token's expiry. When the user creates an invoice while offline, the app:
+
+1. Pops the next usable reservation and saves a draft with that number visible (e.g. "Factură #101").
+2. Enqueues a `POST /invoices` mutation in its outbox with `reservation_token` and `force_chronology: false`.
+3. The outbox drains on the next network/foreground transition.
+
+### Emit an invoice from a draft
+
+```bash
+POST /invoices
+Authorization: Bearer {jwt}
+Idempotency-Key: {localUuid}
+Content-Type: application/json
+
+{
+  "series_id": "inv_abc",
+  "reservation_token": "rsv_0f3a9b...",
+  "client_id": "cli_def",
+  "date": "2026-04-20",
+  "items": [ { "description": "...", "quantity": 1, "price": 100, "vat_rate": 19 } ]
+}
+```
+
+The server verifies the reservation:
+
+| Check | Failure code |
+|-------|--------------|
+| Token exists under the caller's firm | `reservation_missing` |
+| Token belongs to the same series as `series_id` | `reservation_series_mismatch` |
+| Token status is `pending` | `reservation_already_consumed` / `reservation_not_pending` |
+| Token has not expired | `reservation_expired` |
+| Token belongs to the caller's device | `reservation_device_mismatch` |
+
+On success, the invoice is created with `number_idx` equal to the reservation's pre-allocated slot. The reservation flips to `consumed` and records the `bill_id`.
+
+### Discarded drafts
+
+If the user deletes an offline draft before it syncs, the app calls [`POST /invoice-series/reservations/{token}/release`](/api-reference/endpoints/invoice-series/release-reservation). The reservation flips to `released` — the number itself is still gone (documented gap), but the audit trail captures intent.
+
+## Gap handling
+
+The series counter advances the moment a reservation is created, not when the invoice is actually emitted. That means expired / released reservations can become **gaps** in the sequence. Romanian fiscal regulations accept gaps when a firm can document why they occurred — keep the reservation TTL generous (default 30 days) and have the device refresh the pool often enough that expiry is rare in practice.
+
+If your jurisdiction does not accept gaps, disable the reservation feature entirely: leave series unlocked and require the mobile device to be online when emitting. The existing online-only path in `POST /invoices` still works without any changes.
+
+## When to use the lock
+
+| Situation | Lock? |
+|-----------|-------|
+| Field sales: phone issues invoices at the client's premises, often without signal. | **Yes** — lock the series the sales rep uses. |
+| Home office: emits from laptop only. | No. |
+| Shop with both a POS (mobile) and back-office (web) on the same series. | **Yes** — lock to the POS device. Emit back-office invoices on a different series. |
+| Multi-device field team on the same series. | Not recommended — only one device at a time can hold the lock. Give each sales rep their own series. |
+
+## Error reference (invoice creation)
+
+| HTTP | Code | Meaning |
+|------|------|---------|
+| 403 | `series_locked_to_device` | Series is locked; caller is not a mobile device. |
+| 403 | `series_locked_other_device` | Series is locked to a different device than the caller. |
+| 409 | `reservation_already_consumed` | The token was already used — the outbox must have double-fired. Idempotency-Key should prevent this; check your client. |
+| 409 | `reservation_expired` | TTL has passed; allocate a fresh batch. |
+| 409 | `reservation_series_mismatch` | Wrong `series_id` for the token. |
+| 403 | `reservation_device_mismatch` | Token belongs to another device (same firm). |

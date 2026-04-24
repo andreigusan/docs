@@ -1,0 +1,223 @@
+---
+title: 'Expense Lines & VAT Breakdown'
+description: 'Model itemized expenses with per-line VAT rates, mixed-rate receipts, and bit-exact header totals'
+---
+
+## Overview
+
+Expenses can be stored in two shapes:
+
+1. **Flat** — a single amount plus one VAT rate. Fine for a utility bill, fuel
+   ticket, or any receipt with one subtotal. This is the original shape; you
+   send `amount` + `vat` and the server stores it directly.
+2. **Itemized** — an ordered array of `items`, each with its own name,
+   quantity, unit price, and VAT rate. This is how you model restaurant
+   bills, supermarket receipts, or any multi-row supplier invoice where
+   different rates apply to different goods.
+
+Both shapes round-trip through the same `Expense` object. The `items` array
+is always present on retrieve — for flat expenses the server synthesizes a
+single line so API consumers can render a uniform table.
+
+## When to use itemized lines
+
+Send `items` whenever any of these are true:
+
+- The receipt has two or more VAT rates (common in Romanian restaurants:
+  11% food + 21% drinks, or supermarkets that mix 5% / 9% / 19% baskets).
+- You need per-line categories or per-line product associations for
+  accounting or analytics.
+- The customer wants the line detail preserved for SAF-T D406 or future
+  audit exports.
+
+For everything else, the flat path is simpler and equivalent.
+
+## Request shape
+
+```json Create with items
+POST /expenses
+{
+  "supplier_id": "sup_xyz789",
+  "date": "2026-02-19",
+  "currency": "RON",
+  "items": [
+    {
+      "name": "Meniul zilei",
+      "quantity": 3,
+      "unit_price": 28.74,
+      "vat_rate": 11
+    },
+    {
+      "name": "Caserolă meniu",
+      "quantity": 6,
+      "unit_price": 1.24,
+      "vat_rate": 21
+    }
+  ]
+}
+```
+
+When `items` is supplied:
+
+- `amount`, `vat`, and `vat_breakdown` on the request body are **ignored** —
+  the server derives all three from the lines.
+- The expense is persisted with real line rows (`firm_expense_line`).
+- Header `vat` is set to the *dominant rate* — the rate with the largest
+  net across all lines. Ties resolve to first occurrence.
+- `vat_breakdown` is populated automatically when two or more distinct rates
+  are present; `null` for single-rate lines.
+
+## Rounding rule — matches printed receipts
+
+Line aggregates are rounded to **2 decimals** before they are summed into
+the header. This mirrors the standard Romanian invoice convention used by
+`FirmBill` and ensures the header equals the sum of the visible per-line
+totals bit-exact.
+
+For the example above:
+
+| Line | Net (qty × unit_price) | VAT | Gross |
+|------|------------------------|-----|-------|
+| Meniul zilei | `3 × 28.74 = 86.22` | `round(86.22 × 0.11, 2) = 9.48` | `95.70` |
+| Caserolă | `6 × 1.24 = 7.44` | `round(7.44 × 0.21, 2) = 1.56` | `9.00` |
+| **Header** | **93.66** | **11.04** | **104.70** |
+
+Sum of line gross = header gross. No 0.01 drift. This is why clients that
+display both a per-line table and a header total never see a mismatch.
+
+If you need 4-decimal precision for internal ledgers, compute it from the
+raw `quantity × unit_price` values yourself — the API intentionally exposes
+only the 2-decimal authoritative values.
+
+## Response shape
+
+Retrieve always returns an `items` array — at minimum one entry.
+
+```json GET /expenses/{id}
+{
+  "expense": {
+    "id": "exp_abc123",
+    "amount": { "total": "104.70", "without_vat": "93.66", "vat": "11.04", "currency": "RON" },
+    "vat_percent": 11,
+    "items": [
+      {
+        "id": 4201,
+        "line_index": 0,
+        "name": "Meniul zilei",
+        "description": null,
+        "quantity": 3,
+        "unit_code": null,
+        "unit_price": 28.74,
+        "vat_rate": 11,
+        "amount_wvat": 86.22,
+        "amount_vat": 9.48,
+        "amount": 95.70,
+        "category_id": null,
+        "product_id": null
+      },
+      {
+        "id": 4202,
+        "line_index": 1,
+        "name": "Caserolă meniu",
+        "quantity": 6,
+        "unit_price": 1.24,
+        "vat_rate": 21,
+        "amount_wvat": 7.44,
+        "amount_vat": 1.56,
+        "amount": 9.00,
+        "category_id": null,
+        "product_id": null
+      }
+    ],
+    "vat_breakdown": [
+      { "rate": 11, "net": 86.22, "vat_amount": 9.48, "gross": 95.70 },
+      { "rate": 21, "net": 7.44,  "vat_amount": 1.56, "gross": 9.00 }
+    ]
+  }
+}
+```
+
+### Multi-rate without lines
+
+If you don't need per-line data but your receipt still mixes VAT rates,
+send `vat_breakdown` alongside `amount` / `vat` on the flat path:
+
+```json
+{
+  "supplier_id": "sup_xyz789",
+  "date": "2026-02-19",
+  "amount": 104.70,
+  "vat": 11,
+  "vat_breakdown": [
+    { "rate": 11, "net": 86.22, "vat_amount": 9.48,  "gross": 95.70 },
+    { "rate": 21, "net": 7.44,  "vat_amount": 1.56,  "gross": 9.00 }
+  ]
+}
+```
+
+The server stores the array as JSON on the row. Retrieve returns the same
+breakdown and synthesizes a single `items` entry from the header totals.
+
+## Update semantics
+
+`PUT /expenses/{id}` with `items` **replaces** all line rows for that
+expense. Send the full desired set, not a diff. Lines you omit are deleted.
+
+Omitting `items` from the update body leaves the existing lines alone and
+updates only the header fields you did pass (description, date, etc.).
+
+Switching an expense between flat and itemized:
+
+- Flat → itemized: send `items`; header is derived from them, legacy
+  `amount`/`vat` on the body are ignored.
+- Itemized → flat: send `amount` + `vat` **and** an empty `items: []` to
+  explicitly clear the lines. Otherwise the existing lines persist.
+
+## Field reference
+
+<ParamField body="items[].name" type="string" required>
+  Human-readable line name. Shows up in the app's line table.
+</ParamField>
+
+<ParamField body="items[].quantity" type="number" required>
+  Positive number. Fractional quantities (e.g. `0.5 kg`) are allowed.
+</ParamField>
+
+<ParamField body="items[].unit_price" type="number" required>
+  **Net** unit price (excluding VAT). The server always treats
+  `quantity × unit_price` as the line net; there is no per-line
+  `with_vat` flag.
+</ParamField>
+
+<ParamField body="items[].vat_rate" type="integer" required>
+  One of `0`, `5`, `9`, `11`, `19`, `21`.
+</ParamField>
+
+<ParamField body="items[].description" type="string">
+  Optional longer description rendered under the line name.
+</ParamField>
+
+<ParamField body="items[].unit_code" type="string">
+  Optional UN/ECE unit code (e.g. `H87` for pieces, `KGM` for kilograms).
+  Preserved round-trip but not validated.
+</ParamField>
+
+<ParamField body="items[].category_id" type="string">
+  Optional per-line category override. Falls back to the expense-level
+  `category_id` when omitted.
+</ParamField>
+
+<ParamField body="items[].product_id" type="string">
+  Optional link to a product in the firm's catalog.
+</ParamField>
+
+## e-Factura inbound → lines
+
+When an expense is reconciled from an inbound e-Factura (`FirmSupplierInvoice`),
+the backend reuses the `<cac:InvoiceLine>` rows from the UBL XML to build the
+canonical line shape. You never need to POST these manually for reconciled
+bills — the expense already carries `firm_expense_line` rows matching the
+printed invoice, and `vat_breakdown` is computed from them.
+
+If you subsequently PUT `items[]` on such an expense, the e-Factura-derived
+lines are replaced (standard replace semantics apply).

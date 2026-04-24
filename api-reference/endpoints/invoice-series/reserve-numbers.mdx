@@ -1,0 +1,53 @@
+---
+title: 'Reserve Numbers'
+openapi: 'POST /invoice-series/{id}/reserve-numbers'
+description: 'Pre-allocate N invoice numbers from a locked series so the mobile device can emit invoices offline with correct numbering.'
+---
+
+## Overview
+
+Pulls `count` sequential numbers off the series counter and hands back one reservation token per slot. The caller mobile device carries these tokens in local storage and spends them when creating invoices offline.
+
+When the device later syncs the drafts with `POST /invoices`, it includes `reservation_token` in the body — the backend uses the reservation's pre-allocated `number_idx` instead of incrementing the counter again. This keeps invoice numbers gapless even across long offline periods.
+
+<Note>
+  The series must be locked to the calling device first (see [Lock Series](/api-reference/endpoints/invoice-series/lock)). Calling this on an unlocked series, or from a different device than the one holding the lock, returns `series_not_locked_to_device`.
+</Note>
+
+## Body
+
+<ParamField body="count" type="integer" required default="10">
+  Number of reservation slots to allocate. Maximum 50 per call — request again if the device needs more.
+</ParamField>
+
+## Response
+
+Returns a list of reservation objects.
+
+<ResponseField name="data" type="array">
+  <Expandable title="Reservation properties">
+    <ResponseField name="token" type="string">Opaque token. Pass as `reservation_token` when emitting the invoice.</ResponseField>
+    <ResponseField name="number" type="integer">The pre-allocated sequence number within the series.</ResponseField>
+    <ResponseField name="status" type="string">`pending`, `consumed`, `released`, or `expired`.</ResponseField>
+    <ResponseField name="device_id" type="string">Device this reservation is bound to.</ResponseField>
+    <ResponseField name="reserved_at" type="integer">Unix timestamp (seconds).</ResponseField>
+    <ResponseField name="expires_at" type="integer">Unix timestamp (seconds). Reservations expire after 30 days by default.</ResponseField>
+    <ResponseField name="consumed_at" type="integer">Unix timestamp when consumed, else `null`.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Behavior after TTL
+
+If a reservation expires without being consumed, the pre-allocated number becomes a gap in the series. Romanian fiscal practice accepts gaps when documented — keep the reservation TTL generous (default 30 days) and refresh the pool whenever the device comes back online. The cleanup cron flips expired rows to `status = 'expired'` but does not renumber downstream invoices.
+
+## Lifecycle
+
+```text
+                 ┌──────────────┐    consumed
+  reserve ────►  │  pending     │ ───────────────► consumed (by POST /invoices)
+                 └──────────────┘
+                        │
+                        ├─ released (by POST /invoice-series/reservations/{token}/release)
+                        │
+                        └─ expired  (by TTL cron)
+```

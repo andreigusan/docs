@@ -1,0 +1,30 @@
+---
+title: 'Release Reservation'
+openapi: 'POST /invoice-series/reservations/{token}/release'
+description: 'Give up a pending reservation the device no longer plans to use.'
+---
+
+## Overview
+
+Flips a `pending` reservation to `released`. Called by the mobile app when the user discards an offline draft before it was synced.
+
+<Warning>
+  Releasing does **not** return the number to the pool — the series counter already advanced when the reservation was allocated. Released reservations become documented gaps (same outcome as expired ones). Release primarily exists so the server can tell the difference between "device will retry this invoice later" and "user cancelled it intentionally" — useful for audit trails and for other devices that may come back online and expect accurate pool sizes.
+</Warning>
+
+## Path parameters
+
+<ParamField path="token" type="string" required>
+  The `reservation_token` returned by [Reserve Numbers](/api-reference/endpoints/invoice-series/reserve-numbers).
+</ParamField>
+
+## Response
+
+Returns the updated reservation object with `status = 'released'`.
+
+## Errors
+
+| Code | Meaning |
+|------|---------|
+| `resource_missing` | Token does not exist or belongs to another firm. |
+| `forbidden` | Token belongs to a different device — only the owning device can release. |

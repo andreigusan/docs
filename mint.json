@@ -120,6 +120,18 @@
           ]
         },
         {
+          "group": "Supplier Bills",
+          "pages": [
+            "api-reference/endpoints/supplier-bills/list",
+            "api-reference/endpoints/supplier-bills/retrieve",
+            "api-reference/endpoints/supplier-bills/sync",
+            "api-reference/endpoints/supplier-bills/mark-paid",
+            "api-reference/endpoints/supplier-bills/mark-unpaid",
+            "api-reference/endpoints/supplier-bills/delete",
+            "api-reference/endpoints/supplier-bills/efactura-pdf"
+          ]
+        },
+        {
           "group": "Dashboard",
           "pages": [
             "api-reference/endpoints/dashboard/stats"
@@ -144,7 +156,12 @@
             "api-reference/endpoints/invoice-series/list",
             "api-reference/endpoints/invoice-series/create",
             "api-reference/endpoints/invoice-series/update",
-            "api-reference/endpoints/invoice-series/set-primary"
+            "api-reference/endpoints/invoice-series/set-primary",
+            "api-reference/endpoints/invoice-series/lock",
+            "api-reference/endpoints/invoice-series/unlock",
+            "api-reference/endpoints/invoice-series/reserve-numbers",
+            "api-reference/endpoints/invoice-series/list-reservations",
+            "api-reference/endpoints/invoice-series/release-reservation"
           ]
         },
         {
@@ -192,7 +209,8 @@
         "concepts/expanding-objects",
         "concepts/localization",
         "concepts/invoice-lifecycle",
-        "concepts/efactura"
+        "concepts/efactura",
+        "concepts/offline-mode"
       ]
     }
   ],

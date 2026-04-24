@@ -1,0 +1,36 @@
+---
+title: 'Lock Series to Mobile Device'
+openapi: 'POST /invoice-series/{id}/lock'
+description: 'Bind an invoice series to the caller mobile device so only that device can issue invoices against it.'
+---
+
+## Overview
+
+Locking a series binds it to the mobile device that issued the call (identified by the `device_id` stored on its `user_session`). Once locked:
+
+- Only that device can issue invoices against the series — online or via pre-reserved numbers when offline.
+- Web/API-key callers attempting to `POST /invoices` with a locked `series_id` receive a `series_locked_to_device` error.
+- The locked device can call `POST /invoice-series/{id}/reserve-numbers` to pre-allocate numbers for offline use.
+
+This prevents race conditions on the invoice number counter when a mobile device is offline and a web user is also trying to emit invoices on the same series.
+
+<Note>
+  Requires a mobile JWT session (issued by `/auth/login`). The JWT's backing `user_session` must have a non-empty `device_id` — re-authenticate from the app if `device_id_missing` is returned.
+</Note>
+
+## Response
+
+<ResponseField name="lock" type="object" required>
+  Non-null once the series is locked.
+
+  <Expandable title="Lock properties">
+    <ResponseField name="device_id" type="string">Stable device identifier persisted on the mobile app (not a session ID).</ResponseField>
+    <ResponseField name="session_id" type="integer">The `user_session.id` that created the lock.</ResponseField>
+    <ResponseField name="user_id" type="integer">The user who locked the series.</ResponseField>
+    <ResponseField name="device_name" type="string">Human-readable device label, e.g. `iPhone 15 Pro`.</ResponseField>
+    <ResponseField name="device_platform" type="string">`ios`, `android` or `web`.</ResponseField>
+    <ResponseField name="locked_at" type="integer">Unix timestamp (seconds) when the lock was created.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="is_locked" type="boolean">Always `true` after a successful lock.</ResponseField>

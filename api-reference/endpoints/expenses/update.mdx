@@ -89,6 +89,27 @@ All fields are optional - only include the fields you want to update. Existing v
   Update the target currency for exchange
 </ParamField>
 
+<ParamField body="items" type="array">
+  Replace the expense line rows. Sending `items` **overwrites** all
+  existing lines for this expense — send the full desired set, not a diff.
+  Lines you omit are deleted. When `items` is present the server derives
+  `amount`, `vat`, and `vat_breakdown` from the lines; the corresponding
+  header-level fields on the request body are ignored.
+
+  Omit `items` entirely to leave the existing lines untouched and update
+  only the header fields you pass. To convert an itemized expense back to
+  flat, send an empty `items: []` alongside new `amount` + `vat`.
+
+  Per-item shape matches the [Create Expense](/api-reference/endpoints/expenses/create) endpoint.
+  See [Expense Lines & VAT Breakdown](/concepts/expense-lines) for rounding rules.
+</ParamField>
+
+<ParamField body="vat_breakdown" type="array">
+  Update the per-rate VAT breakdown for multi-VAT receipts on the flat
+  path. Send an array of `{ rate, net, vat_amount, gross }` entries (two or
+  more). Ignored when `items` is supplied.
+</ParamField>
+
 <ParamField body="currency_rate" type="number">
   Update the exchange rate
 </ParamField>
