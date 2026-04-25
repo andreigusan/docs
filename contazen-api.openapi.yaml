@@ -126,6 +126,8 @@ tags:
     description: API settings and configuration
   - name: Payments
     description: Payments received against invoices
+  - name: Receipts
+    description: Cash receipts (chitanțe) — standalone or paired with an invoice
   - name: Company Lookup
     description: Romanian company lookup (ANAF / VIES)
   - name: Invoice Series
@@ -702,6 +704,19 @@ components:
               type: number
             currency:
               type: string
+        receipt:
+          type: object
+          nullable: true
+          description: |
+            Linked chitanță document, when this payment was emitted via one.
+            Mobile clients use `receipt.id` to deep-link to the receipt editor.
+          properties:
+            id:
+              type: string
+              description: Receipt CzUid
+            number:
+              type: string
+              description: Formatted receipt number (e.g. "C-001")
         client:
           type: object
           nullable: true
@@ -713,6 +728,236 @@ components:
         created_at:
           type: integer
           description: Unix timestamp
+
+    PaymentTotals:
+      type: object
+      description: |
+        SQL-aggregated sums over the entire filtered set (not just the loaded
+        page). Amounts are expressed in the firm's accounting currency.
+      properties:
+        total:
+          type: number
+          description: Sum of all matching payments
+        numerar:
+          type: number
+          description: Sum of `receipt` (cash) payments
+        transfer:
+          type: number
+          description: Sum of `bank_order` payments
+        card:
+          type: number
+          description: Sum of `card` payments
+        bon_fiscal:
+          type: number
+          description: Sum of `fiscal_receipt` payments
+        other:
+          type: number
+          description: Sum of `other`, `cheque`, and `promissory_note` payments
+        count:
+          type: integer
+          description: Number of payments matching the filter
+        currency:
+          type: string
+          description: Firm accounting currency (ISO code)
+
+    Receipt:
+      type: object
+      description: A chitanță (cash receipt) document.
+      properties:
+        id:
+          type: string
+          description: Receipt CzUid
+        object:
+          type: string
+          example: receipt
+        receipt_number:
+          type: string
+          description: Formatted number (e.g. "C-001")
+        amount:
+          type: number
+        amount_without_vat:
+          type: number
+        amount_vat:
+          type: number
+        currency:
+          type: string
+        date:
+          type: string
+          format: date
+          nullable: true
+        observations:
+          type: string
+          nullable: true
+        language:
+          type: string
+          nullable: true
+        is_draft:
+          type: boolean
+        is_deleted:
+          type: boolean
+        exchange_rate:
+          type: number
+          nullable: true
+          description: Currency exchange rate (only when `currency` differs from firm accounting currency)
+        exchange_currency:
+          type: string
+          nullable: true
+          description: Target currency the exchange rate converts to
+        type:
+          type: string
+          enum: [receipt, bank_order, card, fiscal_receipt, other]
+          description: |
+            Payment method type. Only present on list rows. Standalone
+            chitanțe (no linked invoice) default to `receipt` (numerar).
+        client:
+          type: object
+          properties:
+            id:
+              type: string
+              nullable: true
+            name:
+              type: string
+        invoice:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+            number:
+              type: string
+            total:
+              type: number
+            currency:
+              type: string
+            is_paid:
+              type: boolean
+        payment:
+          type: object
+          nullable: true
+          description: |
+            Linked FirmBillPayment row when the chitanță is paired with an
+            invoice. Standalone chitanțe (no invoice) have `payment: null`.
+          properties:
+            id:
+              type: string
+            object:
+              type: string
+              example: payment
+            amount:
+              type: number
+            amount_without_vat:
+              type: number
+            amount_vat:
+              type: number
+            currency:
+              type: string
+            date:
+              type: string
+              format: date
+              nullable: true
+            type:
+              type: string
+              enum: [receipt, bank_order, card, fiscal_receipt, other]
+            type_description:
+              type: string
+            exchange_rate:
+              type: number
+              nullable: true
+            exchange_currency:
+              type: string
+              nullable: true
+            invoice:
+              type: object
+              nullable: true
+              properties:
+                id:
+                  type: string
+                number:
+                  type: string
+            client:
+              type: object
+              properties:
+                id:
+                  type: string
+                  nullable: true
+                name:
+                  type: string
+            created_at:
+              type: integer
+        created_at:
+          type: integer
+        updated_at:
+          type: integer
+          nullable: true
+
+    ReceiptCreateRequest:
+      type: object
+      required:
+        - client_id
+        - amount
+      description: |
+        Create a chitanță. When `invoice_id` is supplied, a linked
+        `FirmBillPayment` row is created and the invoice's paid state is
+        recomputed. Standalone chitanțe (no invoice) default to type
+        `receipt` (numerar).
+      properties:
+        client_id:
+          type: string
+          description: Client CzUid (also accepts `clientId`)
+        invoice_id:
+          type: string
+          description: Optional invoice CzUid to pair this chitanță with
+        amount:
+          type: number
+          description: Total amount
+        currency:
+          type: string
+          default: RON
+        payment_date:
+          type: string
+          description: Date in `YYYY-MM-DD` or `DD-MM-YYYY` (defaults to today)
+        observations:
+          type: string
+          description: Free-text note. Falls back to "Încasare factură {nr}" or "Încasare" when omitted.
+        type:
+          type: string
+          enum: [receipt, numerar, cash, bank_order, transfer, op, card, fiscal_receipt, bon_fiscal, other]
+          default: receipt
+          description: Payment method (alias-tolerant). Only used when `invoice_id` is set.
+        language:
+          type: string
+          default: ro
+        number_id:
+          type: string
+          description: Chitanță series CzUid. Defaults to firm's primary chitanță series.
+        exchange_rate:
+          type: number
+          description: Required when `currency` differs from firm accounting currency.
+
+    ReceiptUpdateRequest:
+      type: object
+      description: |
+        All fields optional. Same shape as create; `client_id` may be omitted
+        and the existing client is preserved.
+      properties:
+        client_id:
+          type: string
+        invoice_id:
+          type: string
+        amount:
+          type: number
+        currency:
+          type: string
+        payment_date:
+          type: string
+        observations:
+          type: string
+        type:
+          type: string
+        language:
+          type: string
+        exchange_rate:
+          type: number
 
     InvoiceCreateRequest:
       type: object
@@ -1715,13 +1960,31 @@ components:
                 format: date
               is_paid:
                 type: boolean
+        metadata:
+          type: object
+          description: |
+            Lightweight expense aggregates. Returned by `GET /suppliers` only
+            when `with_totals=1` is supplied. Cheaper than `expand=statistics`
+            since the totals come from a single inline subquery rather than
+            a per-row N+1 follow-up. Amounts are expressed in the firm's
+            accounting currency.
+          properties:
+            expense_count:
+              type: integer
+              description: Number of non-deleted expenses for this supplier
+            total_expenses:
+              type: number
+              description: Sum of `account_amount_total` across all matching expenses
+            unpaid_total:
+              type: number
+              description: Sum of `account_amount_total` across unpaid matching expenses
         created_at:
           type: string
           format: date-time
         updated_at:
           type: string
           format: date-time
-          
+
     SupplierList:
       type: object
       allOf:
@@ -4453,6 +4716,16 @@ paths:
           schema:
             type: string
           description: Comma-separated list (statistics,recent_expenses)
+        - name: with_totals
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1]
+          description: |
+            When `1`, attaches a `metadata` object to each supplier with
+            `expense_count`, `total_expenses`, and `unpaid_total` computed
+            via inline subqueries (avoids N+1). Cheaper than
+            `expand=statistics`.
       responses:
         '200':
           description: List of suppliers
@@ -5051,6 +5324,8 @@ paths:
                         type: integer
                       total_pages:
                         type: integer
+                      totals:
+                        $ref: '#/components/schemas/PaymentTotals'
                   meta:
                     $ref: '#/components/schemas/ResponseMeta'
         '401':
@@ -5080,6 +5355,259 @@ paths:
                     type: boolean
                   data:
                     $ref: '#/components/schemas/Payment'
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /receipts:
+    get:
+      operationId: listReceipts
+      tags: [Receipts]
+      summary: List receipts
+      description: |
+        List `chitanță` (cash receipt) documents for the authenticated firm.
+        Each row may be standalone or paired with an invoice and a
+        `FirmBillPayment` (see `payment` on `GET /receipts/{id}`).
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: date_from
+          in: query
+          description: Filter from date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          description: Filter to date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: client_id
+          in: query
+          description: Filter by client CzUid (matches all snapshots of that client)
+          schema:
+            type: string
+        - name: invoice_id
+          in: query
+          description: Only chitanțe paying this invoice (CzUid)
+          schema:
+            type: string
+        - name: include_deleted
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [date, amount, created_at]
+            default: date
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: List of receipts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      object:
+                        type: string
+                        example: list
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Receipt'
+                      has_more:
+                        type: boolean
+                      total:
+                        type: integer
+                      page:
+                        type: integer
+                      per_page:
+                        type: integer
+                      total_pages:
+                        type: integer
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    post:
+      operationId: createReceipt
+      tags: [Receipts]
+      summary: Create a receipt
+      description: |
+        Create a chitanță. When `invoice_id` is supplied, a paired
+        `FirmBillPayment` is created and the invoice's paid state is
+        recomputed (flips to `is_paid: true` once the cumulative paid amount
+        meets the invoice total). Standalone chitanțe (no invoice) skip the
+        payment row and default to type `receipt` (numerar).
+
+        Cash-register synchronization runs inside the same transaction —
+        failures roll the whole save back.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceiptCreateRequest'
+      responses:
+        '201':
+          description: Receipt created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Receipt'
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '422':
+          description: |
+            Returned when the firm has no chitanță series configured
+            (`code: chitanta_series_missing`) or `validate()` rejects the
+            payload (`code: validation_failed`).
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /receipts/{id}:
+    get:
+      operationId: getReceipt
+      tags: [Receipts]
+      summary: Retrieve a receipt
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Receipt CzUid
+      responses:
+        '200':
+          description: Receipt details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Receipt'
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    put:
+      operationId: updateReceipt
+      tags: [Receipts]
+      summary: Update a receipt
+      description: |
+        Updates an existing chitanță. Returns `409 resource_deleted` if the
+        receipt has already been soft-deleted. Linked invoice paid state is
+        re-computed when amount/invoice changes.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceiptUpdateRequest'
+      responses:
+        '200':
+          description: Receipt updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Receipt'
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          description: "Receipt already deleted (`code: resource_deleted`)"
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    delete:
+      operationId: deleteReceipt
+      tags: [Receipts]
+      summary: Delete a receipt
+      description: |
+        Soft-deletes the chitanță. Cascades to the linked
+        `FirmBillPayment` (if any) and undoes the invoice's paid state.
+        Idempotent — re-deleting an already-deleted receipt returns success.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Receipt deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      object:
+                        type: string
+                        example: receipt
+                      deleted:
+                        type: boolean
                   meta:
                     $ref: '#/components/schemas/ResponseMeta'
         '404':

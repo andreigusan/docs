@@ -106,6 +106,16 @@
                     ]
                   },
                   {
+                    "group": "Receipts",
+                    "pages": [
+                      "api-reference/endpoints/receipts/list",
+                      "api-reference/endpoints/receipts/create",
+                      "api-reference/endpoints/receipts/retrieve",
+                      "api-reference/endpoints/receipts/update",
+                      "api-reference/endpoints/receipts/delete"
+                    ]
+                  },
+                  {
                     "group": "Bank Accounts",
                     "pages": [
                       "api-reference/endpoints/bank-accounts/list",
