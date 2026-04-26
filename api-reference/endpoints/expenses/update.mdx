@@ -46,8 +46,12 @@ All fields are optional - only include the fields you want to update. Existing v
   Change whether the amount includes VAT
 </ParamField>
 
-<ParamField body="vat" type="integer">
-  Update the VAT percentage
+<ParamField body="vat" type="integer | string">
+  Update the VAT percentage. Either a numeric value (`0`, `5`, `9`, `11`, `19`, `21`) or the string `"mix"` for multi-rate receipts where the caller supplies total VAT manually via `amount_vat_manual`. See [Mix VAT mode on Create](/api-reference/endpoints/expenses/create#mix-vat-mode) for the full shape.
+</ParamField>
+
+<ParamField body="amount_vat_manual" type="number">
+  Total VAT amount in receipt currency. Required (`>= 0`) when `vat = "mix"`, ignored otherwise. The server stores `amount_wvat = amount`, `amount_vat = amount_vat_manual`, `amount_total = amount + amount_vat_manual`.
 </ParamField>
 
 <ParamField body="currency" type="string">
@@ -105,9 +109,10 @@ All fields are optional - only include the fields you want to update. Existing v
 </ParamField>
 
 <ParamField body="vat_breakdown" type="array">
-  Update the per-rate VAT breakdown for multi-VAT receipts on the flat
-  path. Send an array of `{ rate, net, vat_amount, gross }` entries (two or
-  more). Ignored when `items` is supplied.
+  Update the per-rate VAT breakdown for multi-VAT receipts on the flat or
+  mix paths. Send an array of `{ rate, net, vat_amount, gross }` entries
+  (two or more). On the mix path, the breakdown is also used to synthesize
+  one persisted line per rate group. Ignored when `items` is supplied.
 </ParamField>
 
 <ParamField body="currency_rate" type="number">

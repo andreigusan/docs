@@ -1,0 +1,162 @@
+---
+title: 'Scan receipt (OCR)'
+openapi: 'POST /expenses/ocr-extract'
+description: 'Upload a receipt or invoice image and get a structured prefill payload ready to feed into Create Expense.'
+---
+
+## Overview
+
+Send a photo of a Romanian receipt (bon fiscal), chitanță, or supplier invoice and receive a structured prefill payload describing the document — supplier match, dates, totals, per-rate VAT breakdown, optionally per-line items, and a payment-method hint.
+
+Use the response to prefill an expense form. Persist via [`POST /expenses`](./create) once the user confirms — typically with `vat = "mix"` + `amount_vat_manual` for receipts flagged as multi-rate.
+
+## Request
+
+`Content-Type: multipart/form-data`
+
+<ParamField body="image" type="file" required>
+  Receipt image — JPEG, PNG, or WebP, up to 10 MB. Mobile clients should compress to JPEG before upload (HEIC is rejected).
+</ParamField>
+
+## Response (200)
+
+The response is a normalized prefill payload, not a stored expense. Persist it via [`POST /expenses`](./create) once the user confirms.
+
+<ResponseField name="tempFileToken" type="string">
+  Opaque token referencing the uploaded image staged on the server. Pass this to the attachment endpoint when posting the expense so the same image gets attached without a re-upload. Expires after 15 minutes.
+</ResponseField>
+
+<ResponseField name="supplier" type="object">
+  Resolved supplier match.
+  - `id` — CzUid of an existing supplier matched by CUI/name, or `null` for a new auto-created one
+  - `name`, `cui` — best-effort values from the receipt
+  - `matchedExisting` — `true` when an existing supplier was found
+</ResponseField>
+
+<ResponseField name="category" type="object">
+  Fuzzy-matched category from the firm's list (system + custom merged): `{ id, name }`. Both may be `null` when no match is found.
+</ResponseField>
+
+<ResponseField name="date" type="string" format="date">
+  Issue date in `YYYY-MM-DD`. Falls back to today if unreadable.
+</ResponseField>
+
+<ResponseField name="dueDate" type="string">
+  Due date in `YYYY-MM-DD`, or `null` for receipts paid at the point of sale (bon fiscal). When `null`, the form should auto-mark the expense as paid with `paid_date = date` and `payment_type` derived from `paymentMethod` (or `1 = Cash` as fallback).
+</ResponseField>
+
+<ResponseField name="currency" type="string">3-letter ISO code (RON, EUR, USD).</ResponseField>
+
+<ResponseField name="amount" type="number">
+  Net subtotal (excluding VAT). On the **flat** path this is what the user enters in the "Valoarea" field with `with_vat = false`.
+</ResponseField>
+
+<ResponseField name="vatRate" type="number">
+  Dominant VAT percent. Rounded to one of the Romanian rates. On `vatMode = "mix"`, this is informational only — use `amount_vat_manual` instead.
+</ResponseField>
+
+<ResponseField name="vatAmount" type="number">
+  Total VAT amount across all rate tranches. **On `vatMode = "mix"`, send this back as `amount_vat_manual` when posting the expense.**
+</ResponseField>
+
+<ResponseField name="vatMode" type="string">
+  `"flat"` (single rate, send `vat = <number>`) or `"mix"` (two or more non-zero rate tranches, send `vat = "mix"` + `amount_vat_manual = vatAmount`).
+</ResponseField>
+
+<ResponseField name="total" type="number">
+  Gross total printed on the receipt. Always equal to `amount + vatAmount` on the mix path.
+</ResponseField>
+
+<ResponseField name="vatIncluded" type="boolean">
+  `true` when only the gross total was printed (typical bon fiscal). On mix mode this is `false` because `amount` is the explicit subtotal.
+</ResponseField>
+
+<ResponseField name="vatBreakdown" type="array">
+  Per-rate breakdown when the receipt mixes more than one rate, otherwise `null`. Each entry: `{ rate, net, gross, vatAmount }` — any of `net` / `gross` may be `null`.
+
+  On `vatMode = "mix"`, send this array back via `vat_breakdown` when posting so reports keep accurate per-rate totals.
+</ResponseField>
+
+<ResponseField name="paymentMethod" type="string">
+  Payment method inferred from the document footer. One of `"cash"`, `"card"`, `"transfer"`, `"other"`, or `null` (typical for factură furnizor printed before payment). Map to `payment_type` when posting:
+  - `cash` → `1` (Cash, "Numerar prin bon fiscal")
+  - `card` → `4` (Card)
+  - `transfer` → `3` (Bank transfer / Ordin de plată)
+  - `other` / `null` → caller decides
+</ResponseField>
+
+<ResponseField name="docNumber" type="string">
+  Document / receipt / invoice number (`reference` in the create payload).
+</ResponseField>
+
+<ResponseField name="description" type="string">Free-text description, often `null`.</ResponseField>
+
+<ResponseField name="items" type="array">
+  Optional. When present, each entry has `name`, `quantity`, `unit_price` (NET), `vat_rate`. May be absent depending on document quality and structure — clients that ignore this field still get correct totals via the aggregate fields.
+</ResponseField>
+
+<ResponseField name="warnings" type="array">
+  Pre-localized Romanian strings safe to surface in the form alert. Examples:
+  - `"Furnizor nou"` — supplier auto-created
+  - `"Mai multe cote TVA"` — multi-rate detected, switch UI to mix mode
+  - `"Liniile au fost ignorate ..."` — items omitted; rely on the aggregate fields
+</ResponseField>
+
+## Mapping the response to Create Expense
+
+```jsonc
+// OCR response
+{
+  "supplier":     { "id": "Q9hjAB", "name": "KAUFLAND ROMANIA SCS", "cui": "15991149" },
+  "category":     { "id": "11", "name": "Alte consumabile" },
+  "date":         "2026-04-25",
+  "dueDate":      null,
+  "currency":     "RON",
+  "amount":       147.53,
+  "vatAmount":    24.15,
+  "vatMode":      "mix",
+  "total":        171.68,
+  "vatBreakdown": [
+    { "rate": 21, "net": 80.29, "gross": 97.15, "vatAmount": 16.86 },
+    { "rate": 11, "net": 66.27, "gross": 73.56, "vatAmount":  7.29 },
+    { "rate":  0, "net":  0.97, "gross":  0.97, "vatAmount":  0.00 }
+  ],
+  "paymentMethod": "card",
+  "docNumber":     "65776",
+  "warnings":      ["Mai multe cote TVA"]
+}
+```
+
+```jsonc
+// → POST /expenses body
+{
+  "supplier_id":       "Q9hjAB",
+  "category_id":       11,
+  "reference":         "65776",
+  "date":              "2026-04-25",
+  "due_date":          "2026-04-25",   // dueDate was null → bon fiscal: due = issue
+  "amount":            147.53,
+  "vat":               "mix",
+  "amount_vat_manual": 24.15,
+  "currency":          "RON",
+  "vat_breakdown": [
+    { "rate": 21, "net": 80.29, "gross": 97.15, "vat_amount": 16.86 },
+    { "rate": 11, "net": 66.27, "gross": 73.56, "vat_amount":  7.29 },
+    { "rate":  0, "net":  0.97, "gross":  0.97, "vat_amount":  0.00 }
+  ],
+  "is_paid":      true,
+  "paid_date":    "2026-04-25",
+  "payment_type": 4                     // paymentMethod="card" → 4
+}
+```
+
+The server stores `amount_wvat = 147.53`, `amount_vat = 24.15`, `amount_total = 171.68` exactly.
+
+## Errors
+
+- **400 `file_missing`** — no `image` part in the multipart body
+- **400 `invalid_file_type`** — unsupported extension (must be jpg/jpeg/png/webp)
+- **400 `invalid_mime_type`** — content sniff didn't match an accepted image MIME
+- **400 `file_too_large`** — file exceeds 10 MB
+- **502 `ocr_unavailable`** — extraction failed; safe to retry
+- **503 `ocr_not_configured`** — OCR is not enabled on this deployment

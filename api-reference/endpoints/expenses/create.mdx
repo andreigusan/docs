@@ -8,12 +8,13 @@ description: 'Create a new expense record with minimal required fields and smart
 
 The Create Expense endpoint allows you to add a new expense to your firm's records with just 4 required fields. The API provides smart defaults for all optional fields, making expense creation quick and simple.
 
-Two save shapes are supported:
+Three save shapes are supported:
 
-- **Flat** — send `amount` + `vat` for a single-line expense. Simplest path; covers most utility bills and single-rate receipts.
-- **Itemized** — send `items[]` when the receipt has multiple line items or mixes VAT rates. The server derives `amount` / `vat` / `vat_breakdown` from the lines. See [Expense Lines & VAT Breakdown](/concepts/expense-lines) for the full model.
+- **Flat** — send `amount` + `vat` for a single-line, single-rate expense. Simplest path; covers most utility bills and single-rate receipts.
+- **Itemized** — send `items[]` when the receipt has multiple line items, each carrying its own rate. The server derives `amount` / `vat` / `vat_breakdown` from the lines. See [Expense Lines & VAT Breakdown](/concepts/expense-lines) for the full model.
+- **Mix VAT (manual)** — send `vat: "mix"` + `amount` (net subtotal) + `amount_vat_manual` (total VAT in RON) when the receipt mixes multiple VAT rates and per-product detail isn't reliable (typical for noisy bon fiscal OCR). Optionally include `vat_breakdown` so per-rate aggregates persist. The server reconstructs `total = amount + amount_vat_manual` exactly — no derivation, no drift.
 
-`amount` + `vat` are required **only** on the flat path — when `items` is present they become optional and are ignored in favor of the line-derived totals.
+`amount` + `vat` are required on the flat and mix paths. On the itemized path they're ignored in favor of line-derived totals.
 
 ## Duplicate Detection
 
@@ -45,8 +46,12 @@ Clients that want to surface a confirmation dialog to the user before POSTing ca
   The expense amount (positive number). **Required** on the flat path; ignored when `items` is sent.
 </ParamField>
 
-<ParamField body="vat" type="integer">
-  VAT percentage (accepted values: 0, 5, 9, 11, 19, 21). **Required** on the flat path; when `items` is sent the server sets this to the dominant rate.
+<ParamField body="vat" type="integer | string">
+  Either a numeric VAT percentage (`0`, `5`, `9`, `11`, `19`, `21`) **or** the literal string `"mix"` for a multi-rate receipt where the caller supplies the total VAT manually (see [Mix VAT mode](#mix-vat-mode)). **Required** on the flat and mix paths; when `items` is sent the server sets this to the dominant rate.
+</ParamField>
+
+<ParamField body="amount_vat_manual" type="number">
+  Total VAT amount in receipt currency. **Required when `vat = "mix"`**, ignored otherwise. Must be `>= 0`. The server stores `amount_wvat = amount`, `amount_vat = amount_vat_manual`, `amount_total = amount_wvat + amount_vat_manual` exactly — no rounding inference.
 </ParamField>
 
 ### Optional Fields with Defaults
@@ -136,10 +141,18 @@ Clients that want to surface a confirmation dialog to the user before POSTing ca
 </ParamField>
 
 <ParamField body="vat_breakdown" type="array">
-  Per-rate breakdown for multi-VAT receipts saved on the flat path (no
-  `items`). Each entry: `{ rate, net, vat_amount, gross }`. The server stores
-  the array as JSON on the row when two or more distinct rates are present.
-  Ignored when `items` is supplied — in that case the breakdown is derived.
+  Per-rate breakdown for multi-VAT receipts saved on the flat or mix paths
+  (no `items`). Each entry: `{ rate, net, vat_amount, gross }`. The server
+  stores the array as JSON on the row when two or more distinct rates are
+  present. Ignored when `items` is supplied — in that case the breakdown is
+  derived from the lines.
+
+  On the **mix path**, supplying `vat_breakdown` with at least two
+  rate tranches makes the server synthesize one persisted line per rate
+  group (`Cheltuială (21%)`, `Cheltuială (11%)`, `Cheltuială (0%)`) so
+  reports and exports keep accurate per-rate totals. Without a breakdown,
+  mix mode falls back to a single line with a synthetic
+  `vat_rate = (amount_vat_manual / amount) × 100`.
 </ParamField>
 
 <ParamField body="supplier_data" type="object">
@@ -202,7 +215,8 @@ Returns the created expense object with all computed fields including VAT calcul
 
 - **Supplier**: Must exist and be owned by your firm (required)
 - **Amount**: Must be a positive number (required)
-- **VAT**: Must be one of: 0, 5, 9, 11, 19, or 21 (required)
+- **VAT**: Must be one of: 0, 5, 9, 11, 19, 21, or the string `"mix"` (required)
+- **amount_vat_manual**: Required (>= 0) when `vat = "mix"`, ignored otherwise
 - **Date**: Must be in YYYY-MM-DD format (required)
 - **Category**: If provided, must be a valid expense category for your firm
 - **Currency**: If provided, must be a valid 3-letter ISO code
@@ -213,8 +227,42 @@ Returns the created expense object with all computed fields including VAT calcul
 
 The system automatically calculates VAT amounts based on your input:
 
+- If `vat = "mix"`: `amount` is treated as the net subtotal, `amount_vat_manual` is the total VAT, and `total = amount + amount_vat_manual` exactly. `with_vat` is forced to `false`. See [Mix VAT mode](#mix-vat-mode) below.
 - If `with_vat` is **true**: The amount includes VAT, and VAT is extracted from the total
 - If `with_vat` is **false**: The amount excludes VAT, and VAT is added to get the total
+
+## Mix VAT mode
+
+Romanian fiscal receipts (bon fiscal) routinely mix multiple VAT rates on a single document — e.g. food items at 11% alongside non-food at 21% and packaging deposits at 0%. When per-product detail isn't reliable, mix mode lets the caller record the printed totals exactly without inferring a single rate.
+
+**Request shape:**
+
+```json
+{
+  "supplier_id": "Q9hjAB",
+  "date": "2026-04-25",
+  "amount": 147.53,
+  "vat": "mix",
+  "amount_vat_manual": 24.15,
+  "currency": "RON",
+  "vat_breakdown": [
+    { "rate": 21, "net": 80.29, "vat_amount": 16.86, "gross": 97.15 },
+    { "rate": 11, "net": 66.27, "vat_amount":  7.29, "gross": 73.56 },
+    { "rate":  0, "net":  0.97, "vat_amount":  0.00, "gross":  0.97 }
+  ]
+}
+```
+
+**What gets stored:**
+
+- `amount_wvat = 147.53`, `amount_vat = 24.15`, `amount_total = 171.68` (exact, no derivation)
+- `vat_breakdown` JSON when two or more rate entries are supplied; per-rate aggregates persist for reports. Presence of this JSON with ≥2 entries is what marks the row as multi-rate — the legacy `vat_percent` field is filled with the dominant rate for back-compat with single-rate consumers.
+- Without `vat_breakdown`, the receipt is stored as a single-rate row with `vat_percent = (amount_vat_manual / amount) × 100`
+
+**When to use mix vs itemized:**
+
+- Use **itemized** (`items[]`) when you have reliable per-product names, quantities, unit prices, and rates.
+- Use **mix** (`vat = "mix"`) when only the printed totals are reliable.
 
 ## Currency Exchange
 

@@ -1581,6 +1581,80 @@ components:
           nullable: true
           description: Sum of line gross values at this rate (2dp).
 
+    OcrReceiptPayload:
+      type: object
+      description: |
+        Normalized prefill returned by POST /expenses/ocr-extract. Map to
+        a Create Expense body — see the OCR endpoint guide for the full
+        translation table.
+      properties:
+        tempFileToken:
+          type: string
+          description: Opaque 15-min token for the staged image; pass through to attachments.
+        supplier:
+          type: object
+          properties:
+            id:              { type: string, nullable: true }
+            name:            { type: string }
+            cui:             { type: string, nullable: true }
+            matchedExisting: { type: boolean }
+        category:
+          type: object
+          properties:
+            id:   { type: string, nullable: true }
+            name: { type: string, nullable: true }
+        date:        { type: string, format: date }
+        dueDate:     { type: string, nullable: true }
+        currency:    { type: string }
+        amount:      { type: number, description: Net subtotal (excluding VAT). }
+        vatRate:     { type: number, description: Dominant VAT rate. }
+        vatAmount:   { type: number, description: Total VAT across all rate tranches. }
+        vatMode:
+          type: string
+          enum: [flat, mix]
+          description: |
+            "flat" = single rate; send `vat = <number>` on POST.
+            "mix"  = two or more non-zero rate tranches; send `vat = "mix"`
+                     + `amount_vat_manual = vatAmount` on POST.
+        total:        { type: number, description: Gross total printed on the receipt. }
+        vatIncluded:  { type: boolean }
+        vatBreakdown:
+          type: array
+          nullable: true
+          items:
+            type: object
+            properties:
+              rate:      { type: number }
+              net:       { type: number, nullable: true }
+              gross:     { type: number, nullable: true }
+              vatAmount: { type: number }
+        paymentMethod:
+          type: string
+          nullable: true
+          enum: [cash, card, transfer, other, null]
+          description: |
+            Inferred payment method. Map to `payment_type` on POST:
+            cash→1, card→4, transfer→3, other/null→caller decides.
+        docNumber:    { type: string, nullable: true }
+        description:  { type: string, nullable: true }
+        items:
+          type: array
+          description: |
+            Optional. May be absent depending on document quality and
+            structure. Clients that ignore this field still get correct
+            totals via the aggregate fields.
+          items:
+            type: object
+            properties:
+              name:       { type: string }
+              quantity:   { type: number }
+              unit_price: { type: number, description: NET (ex-VAT). }
+              vat_rate:   { type: number }
+        warnings:
+          type: array
+          description: Pre-localized Romanian strings safe to surface in the form alert.
+          items: { type: string }
+
     ExpenseLineInput:
       type: object
       required:
@@ -1682,9 +1756,24 @@ components:
           minimum: 0.01
           description: Amount (positive number). Required on the flat path; ignored when `items` is sent.
         vat:
-          type: integer
-          enum: [0, 5, 9, 11, 19, 21]
-          description: "VAT percentage. Required on the flat path; ignored when `items` is sent."
+          oneOf:
+            - type: integer
+              enum: [0, 5, 9, 11, 19, 21]
+            - type: string
+              enum: ["mix"]
+          description: |
+            VAT percentage. Either a numeric percent (0/5/9/11/19/21) or the
+            string "mix" for multi-rate receipts where the caller supplies
+            the total VAT manually via `amount_vat_manual`. Required on the
+            flat and mix paths; ignored when `items` is sent.
+        amount_vat_manual:
+          type: number
+          minimum: 0
+          description: |
+            Total VAT amount in receipt currency. **Required when `vat = "mix"`**,
+            ignored otherwise. Server stores `amount_wvat = amount`,
+            `amount_vat = amount_vat_manual`, `amount_total = amount + amount_vat_manual`
+            exactly — no rounding inference.
         date:
           type: string
           format: date
@@ -1701,7 +1790,10 @@ components:
           type: array
           description: |
             Per-rate VAT tranches for multi-VAT receipts saved on the flat
-            path. Supply two or more entries. Ignored when `items` is sent.
+            or mix paths. Supply two or more entries. On the mix path the
+            server synthesizes one persisted line per rate group from the
+            breakdown so reports keep accurate per-rate totals. Ignored when
+            `items` is sent.
           items:
             $ref: '#/components/schemas/ExpenseVatBreakdownEntry'
         currency:
@@ -1781,8 +1873,22 @@ components:
           type: integer
           enum: [0, 1]
         vat:
-          type: integer
-          enum: [0, 5, 9, 11, 19, 21]
+          oneOf:
+            - type: integer
+              enum: [0, 5, 9, 11, 19, 21]
+            - type: string
+              enum: ["mix"]
+          description: |
+            VAT percentage. Either a numeric value or the string "mix" for
+            multi-rate receipts. When set to "mix" the request must include
+            `amount_vat_manual`.
+        amount_vat_manual:
+          type: number
+          minimum: 0
+          description: |
+            Total VAT amount when `vat = "mix"`. Server stores
+            `amount_wvat = amount`, `amount_vat = amount_vat_manual`,
+            `amount_total = amount + amount_vat_manual`.
         currency:
           type: string
         date:
@@ -4344,6 +4450,107 @@ paths:
         '401':
           $ref: '#/components/responses/UnauthorizedError'
           
+  /expenses/ocr-extract:
+    post:
+      operationId: ocrExtractReceipt
+      tags: [Expenses]
+      summary: Scan receipt (OCR)
+      description: |
+        Upload a Romanian receipt or supplier invoice photo and receive a
+        structured prefill payload (supplier match, dates, totals, per-rate
+        VAT breakdown, optional per-line items, payment-method hint).
+
+        Use the response to prefill an expense form. Persist via
+        POST /expenses — typically with `vat = "mix"` + `amount_vat_manual`
+        for multi-rate receipts.
+
+        See [the OCR endpoint guide](/api-reference/endpoints/expenses/ocr-extract).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image:
+                  type: string
+                  format: binary
+                  description: Receipt image (JPEG / PNG / WebP, ≤ 10 MB).
+      responses:
+        '200':
+          description: Extracted prefill payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OcrReceiptPayload'
+        '400':
+          description: Invalid file (missing, wrong type, too large)
+        '502':
+          description: Extraction failed (transient — safe to retry)
+        '503':
+          description: OCR not enabled on this deployment
+
+  /expenses/check-duplicate:
+    post:
+      operationId: checkExpenseDuplicate
+      tags: [Expenses]
+      summary: Pre-check for duplicate expense
+      description: |
+        Probe the firm's books for an existing expense that would collide
+        with the prospective payload (same supplier + reference, or same
+        supplier + date + amount within tolerance). Useful before posting a
+        scanned receipt to surface a confirmation dialog.
+
+        Returns `{ duplicate: null }` when nothing matches, or a payload
+        describing the existing row otherwise. Match types:
+        - `exact` — supplier + reference
+        - `strong` — supplier + date + amount (±0.02)
+        - `likely` — reference collision across suppliers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                supplier_id:
+                  type: string
+                  description: Supplier CzUid (preferred) or omit and send `supplier_data`.
+                supplier_data:
+                  type: object
+                  properties:
+                    name: { type: string }
+                    cui:  { type: string }
+                reference:
+                  type: string
+                date:
+                  type: string
+                  format: date
+                amount:
+                  type: number
+                currency:
+                  type: string
+                  default: RON
+      responses:
+        '200':
+          description: Duplicate check result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  duplicate:
+                    nullable: true
+                    type: object
+                    properties:
+                      id:         { type: string }
+                      reference:  { type: string, nullable: true }
+                      date:       { type: string, format: date }
+                      amount:     { type: number }
+                      currency:   { type: string }
+                      match_type: { type: string, enum: [exact, strong, likely] }
+
   /expenses/{id}/attachments:
     post:
       operationId: uploadExpenseAttachment

@@ -158,6 +158,41 @@ send `vat_breakdown` alongside `amount` / `vat` on the flat path:
 The server stores the array as JSON on the row. Retrieve returns the same
 breakdown and synthesizes a single `items` entry from the header totals.
 
+### Mix VAT mode (manual VAT amount)
+
+When even the per-rate net subtotals are unreliable but you do trust the
+printed totals at the bottom of the receipt (typical OCR output: "TOTAL
+171.68 / TVA 24.15"), use **mix mode** — the simplest path that still
+guarantees `total = amount + amount_vat_manual` exactly:
+
+```json
+{
+  "supplier_id":       "sup_xyz789",
+  "date":              "2026-04-25",
+  "amount":            147.53,
+  "vat":               "mix",
+  "amount_vat_manual": 24.15,
+  "vat_breakdown": [
+    { "rate": 21, "net": 80.29, "vat_amount": 16.86, "gross": 97.15 },
+    { "rate": 11, "net": 66.27, "vat_amount":  7.29, "gross": 73.56 },
+    { "rate":  0, "net":  0.97, "vat_amount":  0.00, "gross":  0.97 }
+  ]
+}
+```
+
+The server stores `amount_wvat = 147.53`, `amount_vat = 24.15`,
+`amount_total = 171.68`, and synthesizes one persisted line per rate group
+from `vat_breakdown` so SUM(lines) = header. The `vat` column on the row
+is stored as `0`; mix mode is signaled by the non-null `vat_breakdown`
+JSON column.
+
+When `vat_breakdown` is omitted, mix mode stores a single row with a
+synthetic `vat_rate = (amount_vat_manual / amount) × 100`. Reports lose
+per-rate accuracy but totals stay correct.
+
+This is the path the OCR endpoint produces when per-product detail isn't
+reliable on the source document.
+
 ## Update semantics
 
 `PUT /expenses/{id}` with `items` **replaces** all line rows for that
