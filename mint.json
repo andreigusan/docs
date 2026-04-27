@@ -184,6 +184,17 @@
           "pages": [
             "api-reference/endpoints/settings/get"
           ]
+        },
+        {
+          "group": "Conta",
+          "pages": [
+            "api-reference/endpoints/conta/overview",
+            "api-reference/endpoints/conta/get-profile",
+            "api-reference/endpoints/conta/sync-profile",
+            "api-reference/endpoints/conta/list-balance-sheets",
+            "api-reference/endpoints/conta/get-balance-sheet",
+            "api-reference/endpoints/conta/sync-balance-sheets"
+          ]
         }
       ]
     },

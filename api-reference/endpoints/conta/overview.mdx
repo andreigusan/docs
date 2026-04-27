@@ -1,0 +1,39 @@
+---
+title: 'Conta overview'
+description: 'Public ANAF data for the firm — fiscal profile and annual balance sheets'
+---
+
+The **Conta** module exposes the firm's public ANAF record so you can build
+dashboards, alerts, and analytics without scraping or hitting the ANAF
+webservices yourself.
+
+## What's covered
+
+| Resource | Source | Refresh cadence |
+|----------|--------|-----------------|
+| **Fiscal profile** | ANAF v9 PlatitorTVA (public, no OAuth) | Manual via `POST /accounting/profile/sync` |
+| **Annual balance sheets** | ANAF Bilanț webservice (public, no OAuth) | Manual via `POST /accounting/balance-sheets/sync`, single year or backfill |
+
+Years 2014 onward are supported. ANAF typically publishes year `N-1` between
+August and November of year `N`.
+
+## What's not covered
+
+The following SPV resources are **PDF-only** at ANAF and not yet exposed
+through this API: D100/D300/D394 declarations, fișa rol, vector fiscal,
+certificat fiscal. Track the [roadmap](/changelog) for updates.
+
+## Permissions
+
+| Action | Required permission |
+|--------|---------------------|
+| Read profile + balance sheets (`GET`) | `firm_accounting_view` |
+| Trigger sync (`POST .../sync`) | `firm_accounting_sync` |
+
+Both permissions are granted automatically to firm owners and admin users.
+
+## Rate limits
+
+ANAF caps these webservices at ~1 request/second. The platform shares a
+single throttle across all callers (UI, API, scripts), so a backfill of 10
+years takes ~11s wall time. Plan for this when scheduling syncs.

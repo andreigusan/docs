@@ -144,6 +144,15 @@ tags:
     description: Currencies enabled for the firm's bill templates
   - name: Languages
     description: Languages enabled for the firm's bill templates
+  - name: Conta
+    description: |
+      Public ANAF data for the firm's CUI: fiscal profile (TVA scope, RTVAI,
+      split TVA, status, e-Factura registration, CAEN) and annual balance
+      sheets (cifra de afaceri, profit, capitaluri, datorii, salariați).
+
+      Powered by the public ANAF webservices (no OAuth required for these
+      endpoints). The data is cached locally and refreshed on demand via
+      the `/sync` actions.
 
 security:
   - bearerAuth: []
@@ -2645,6 +2654,242 @@ components:
         is_default:
           type: boolean
           description: True for `ro`
+
+    FiscalProfile:
+      type: object
+      description: |
+        Snapshot of the public ANAF v9 PlatitorTVA record for the firm's CUI.
+      properties:
+        object:
+          type: string
+          enum: [fiscal_profile]
+        id:
+          type: string
+          description: CzUid of the local cached record.
+          example: "f8h2cKp9"
+        subject_cui:
+          type: string
+          description: CUI looked up at ANAF (firm's own CUI in phase 1).
+          example: "28171477"
+        denumire:
+          type: string
+          example: "HAPPY PIXELS SRL"
+        tva_status:
+          type: boolean
+          description: True if the firm is currently a registered TVA payer.
+        tva_scope_start_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2011-03-16"
+        tva_scope_end_date:
+          type: string
+          format: date
+          nullable: true
+        rtvai:
+          type: boolean
+          description: TVA la încasare (cash-VAT) registration.
+        split_tva:
+          type: boolean
+        inactiv:
+          type: boolean
+          description: ANAF inactive-state flag.
+        inactiv_date:
+          type: string
+          format: date
+          nullable: true
+        efactura_registered:
+          type: boolean
+          description: Registered for the RO_e_Factura system.
+        caen:
+          type: integer
+          nullable: true
+          example: 6201
+        caen_name:
+          type: string
+          nullable: true
+        address_sediu_social:
+          type: string
+          nullable: true
+        address_domiciliu_fiscal:
+          type: string
+          nullable: true
+        last_synced_at:
+          type: string
+          format: date-time
+          example: "2026-04-27 08:24:57"
+
+    BalanceSheet:
+      type: object
+      description: |
+        Annual financial statement for the firm, sourced from the public ANAF
+        Bilanț webservice. Hot fields are best-effort denormalizations of the
+        most useful indicators; the full per-indicator detail is available in
+        the per-year `GET /accounting/balance-sheets/{year}` response.
+      properties:
+        object:
+          type: string
+          enum: [balance_sheet]
+        id:
+          type: string
+          description: CzUid.
+        subject_cui:
+          type: string
+        an:
+          type: integer
+          example: 2024
+        denumire:
+          type: string
+          nullable: true
+        caen:
+          type: integer
+          nullable: true
+        caen_name:
+          type: string
+          nullable: true
+        cifra_afaceri:
+          type: number
+          format: float
+          nullable: true
+          example: 781376.00
+        venituri_total:
+          type: number
+          format: float
+          nullable: true
+        cheltuieli_total:
+          type: number
+          format: float
+          nullable: true
+        profit_brut:
+          type: number
+          format: float
+          nullable: true
+        pierdere_bruta:
+          type: number
+          format: float
+          nullable: true
+        profit_net:
+          type: number
+          format: float
+          nullable: true
+          example: 212401.00
+        pierdere_neta:
+          type: number
+          format: float
+          nullable: true
+        capitaluri_proprii:
+          type: number
+          format: float
+          nullable: true
+        datorii_total:
+          type: number
+          format: float
+          nullable: true
+        active_imobilizate:
+          type: number
+          format: float
+          nullable: true
+        active_circulante:
+          type: number
+          format: float
+          nullable: true
+        active_total:
+          type: number
+          format: float
+          nullable: true
+          description: Computed as `active_imobilizate + active_circulante` when both present.
+        nr_salariati:
+          type: integer
+          nullable: true
+          example: 1
+        synced_at:
+          type: string
+          format: date-time
+
+    BalanceSheetIndicator:
+      type: object
+      description: One raw ANAF indicator as returned by the Bilanț webservice.
+      properties:
+        indicator:
+          type: string
+          description: ANAF code (e.g. `I7`, `I47`, `nr_med_sal`). Stable per OMFP form, may differ between forms.
+          example: "I7"
+        value:
+          type: number
+          example: 781376
+        indicator_name:
+          type: string
+          description: Romanian human label (uppercase, no diacritics).
+          example: "CIFRA DE AFACERI NETA"
+        case:
+          type: string
+          description: SDK enum case name (e.g. `NET_TURNOVER`). Stable across years.
+          example: "NET_TURNOVER"
+
+    BalanceSheetDetail:
+      allOf:
+        - $ref: '#/components/schemas/BalanceSheet'
+        - type: object
+          properties:
+            indicators:
+              type: array
+              description: Full per-indicator payload, in the order ANAF returned them.
+              items:
+                $ref: '#/components/schemas/BalanceSheetIndicator'
+
+    BalanceSheetList:
+      type: object
+      properties:
+        object:
+          type: string
+          enum: [list]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/BalanceSheet'
+        count:
+          type: integer
+
+    BalanceSheetSyncEmpty:
+      type: object
+      description: Returned when the requested year is not yet published by ANAF.
+      properties:
+        object:
+          type: string
+          enum: [balance_sheet_sync]
+        year:
+          type: integer
+        imported:
+          type: integer
+          example: 0
+        message:
+          type: string
+          example: "Bilantul pentru 2025 nu este publicat de ANAF."
+
+    BalanceSheetBackfillResult:
+      type: object
+      description: Stats returned by the backfill operation.
+      properties:
+        object:
+          type: string
+          enum: [balance_sheet_backfill]
+        from_year:
+          type: integer
+          example: 2014
+        to_year:
+          type: integer
+          example: 2024
+        imported:
+          type: integer
+          description: Number of years imported (with data).
+        empty:
+          type: integer
+          description: Number of years skipped because ANAF had no data yet.
+        errors:
+          type: object
+          description: Map of `year → error message` for years that hit a hard error.
+          additionalProperties:
+            type: string
 
   responses:
     UnauthorizedError:
@@ -6986,4 +7231,214 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '404': { $ref: '#/components/responses/NotFoundError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+
+  /accounting/profile:
+    get:
+      operationId: getFiscalProfile
+      tags: [Conta]
+      summary: Retrieve the fiscal profile
+      description: |
+        Returns the cached ANAF v9 PlatitorTVA snapshot for the authenticated
+        firm's CUI. If the profile has never been synced, returns 404 with
+        code `profile_not_synced` — call `POST /accounting/profile/sync` first.
+      responses:
+        '200':
+          description: Fiscal profile snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data: { $ref: '#/components/schemas/FiscalProfile' }
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '400':
+          description: Firm has no CUI configured
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Profile not synced yet
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+
+  /accounting/profile/sync:
+    post:
+      operationId: syncFiscalProfile
+      tags: [Conta]
+      summary: Sync the fiscal profile from ANAF
+      description: |
+        Triggers a fresh ANAF v9 lookup for the firm's CUI and upserts the
+        cached `FiscalProfile`. Throttled at 1 request/second across all
+        callers (UI, API, scripts).
+
+        **Required permission**: `firm_accounting_sync`.
+      responses:
+        '200':
+          description: Profile synced
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data: { $ref: '#/components/schemas/FiscalProfile' }
+                  message: { type: string, example: "Profil fiscal sincronizat." }
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '400':
+          description: Firm has no CUI configured
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '502':
+          description: ANAF sync failed (rate limit, network, or invalid response)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+
+  /accounting/balance-sheets:
+    get:
+      operationId: listBalanceSheets
+      tags: [Conta]
+      summary: List balance sheets
+      description: |
+        Returns all locally cached balance sheets for the authenticated firm,
+        ordered by year DESC. Each item exposes the headline financial figures
+        (cifra de afaceri, profit, capitaluri, datorii, salariați). For
+        per-indicator detail call `GET /accounting/balance-sheets/{year}`.
+      responses:
+        '200':
+          description: List of balance sheets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data: { $ref: '#/components/schemas/BalanceSheetList' }
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '400':
+          description: Firm has no CUI configured
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+
+  /accounting/balance-sheets/{year}:
+    get:
+      operationId: getBalanceSheet
+      tags: [Conta]
+      summary: Retrieve a balance sheet for a specific year
+      description: |
+        Returns the cached balance sheet plus the full `indicators[]` array
+        as returned by the ANAF Bilanț webservice. If the year hasn't been
+        synced yet, returns 404 with code `year_not_synced` — call
+        `POST /accounting/balance-sheets/sync` first.
+      parameters:
+        - name: year
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 2014
+          description: Calendar year (2014 onward).
+      responses:
+        '200':
+          description: Balance sheet detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data: { $ref: '#/components/schemas/BalanceSheetDetail' }
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '400':
+          description: Invalid year (out of supported range)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Year not synced yet
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+
+  /accounting/balance-sheets/sync:
+    post:
+      operationId: syncBalanceSheet
+      tags: [Conta]
+      summary: Sync balance sheets from ANAF
+      description: |
+        Triggers a fresh ANAF Bilanț fetch. Three modes:
+
+        - **Single year** (`year` provided): fetch one year. Returns the
+          balance sheet, or `BalanceSheetSyncEmpty` if ANAF has not published
+          that year yet.
+        - **Backfill** (`backfill: true`): fetch a range of years (default
+          `2014 → currentYear-1`). Returns `BalanceSheetBackfillResult` with
+          stats. Throttled at ~1.05s per year (10 years ≈ 11s wall time).
+        - **Default** (no `year`, no `backfill`): fetch the latest published
+          year (currentYear-1, fallback currentYear-2).
+
+        **Required permission**: `firm_accounting_sync`.
+
+        **Note**: backfill ranges are clamped to 10 years per call to keep
+        request duration bounded.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                year:
+                  type: integer
+                  minimum: 2014
+                  description: Sync only this single year.
+                backfill:
+                  type: boolean
+                  description: When true, sync a range of years.
+                from_year:
+                  type: integer
+                  minimum: 2014
+                  description: Start of backfill range (inclusive). Default 2014.
+                to_year:
+                  type: integer
+                  description: End of backfill range (inclusive). Default currentYear-1.
+      responses:
+        '200':
+          description: Sync result. Shape varies by mode.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    oneOf:
+                      - $ref: '#/components/schemas/BalanceSheet'
+                      - $ref: '#/components/schemas/BalanceSheetSyncEmpty'
+                      - $ref: '#/components/schemas/BalanceSheetBackfillResult'
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '502':
+          description: ANAF sync failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '401': { $ref: '#/components/responses/UnauthorizedError' }
