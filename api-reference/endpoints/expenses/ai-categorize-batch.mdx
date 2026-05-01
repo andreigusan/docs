@@ -1,0 +1,67 @@
+---
+title: 'AI-categorize expenses'
+openapi: 'POST /expenses/ai-categorize-batch'
+description: 'Run Claude over every uncategorized expense in the firm and assign a category from the existing list.'
+---
+
+## When to use
+
+After bulk-importing expenses (OCR, supplier sync, e-Factura SPV) the `category_id` is often `null`. This endpoint sweeps every such row and asks Claude to pick a category from the firm's existing list — system defaults plus custom categories, merged. Existing categorizations are never overwritten.
+
+Call repeatedly until `remaining = 0`. Each call processes up to `cap` expenses (a server-side constant returned in the response) so a 5000-expense backlog won't run away with the Anthropic bill.
+
+## Permissions
+
+Requires `write` permission on expenses. Claude runs only on deployments that have `ANTHROPIC_API_KEY` set; otherwise the endpoint returns `503 ai_not_configured`.
+
+## Request
+
+<ParamField body="max" type="integer">
+  Optional cap on the number of expenses to process this call. The server enforces its own ceiling (`BATCH_MAX_PER_CALL`), so very large values are clamped silently. Omit for "process up to the server cap."
+</ParamField>
+
+## Response
+
+```json
+{
+  "data": {
+    "processed":   50,
+    "categorized": 47,
+    "skipped":     2,
+    "errors":      1,
+    "remaining":   1242,
+    "batch_size":  10,
+    "cap":         50
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `processed`   | Expenses inspected this call. |
+| `categorized` | Expenses that received a `category_id`. |
+| `skipped`     | Claude declined to classify (low confidence or no obvious match in the firm's category list). |
+| `errors`      | Per-row failures — logged server-side, retryable on next call. |
+| `remaining`   | Uncategorized expenses still queued. **Stop when this hits 0.** |
+| `batch_size`  | Expenses per Anthropic call (informational). |
+| `cap`         | Hard ceiling per invocation (informational). |
+
+## Driver pattern
+
+```js
+async function categorizeAll(client) {
+  while (true) {
+    const { data } = await client.post('/expenses/ai-categorize-batch');
+    if (data.remaining === 0) return;
+    // Optional: pause briefly to be polite to the AI provider.
+    await new Promise(r => setTimeout(r, 500));
+  }
+}
+```
+
+## Errors
+
+- **401** — missing / invalid bearer token
+- **403** — API key lacks `write` permission on expenses
+- **502 `ai_unavailable`** — Anthropic call failed; safe to retry
+- **503 `ai_not_configured`** — deployment has no `ANTHROPIC_API_KEY`

@@ -1,0 +1,76 @@
+---
+title: 'Check for duplicate expense'
+openapi: 'POST /expenses/check-duplicate'
+description: 'Probe the firm''s books for an existing expense that would collide with a prospective payload. Useful before posting a scanned receipt.'
+---
+
+## When to use
+
+Call this **before** [`POST /expenses`](./create) when the source is unattended (OCR, recurring import, supplier sync). The response tells the UI whether to surface a confirmation dialog ("an expense from this supplier with this reference already exists — continue?") instead of silently posting a duplicate.
+
+The endpoint never modifies state. Match resolution mirrors the server-side detector used by the OCR + import flows.
+
+## Request
+
+Send either `supplier_id` (preferred — Romanian companies often share name prefixes) or `supplier_data` with the resolved name/CUI from the receipt. The endpoint **never auto-creates** a supplier; if the supplier_data block doesn't match an existing row, the supplier match is treated as missing and only `reference`-based matches are considered.
+
+<ParamField body="supplier_id" type="string">
+  CzUid of the matched supplier. Preferred when known.
+</ParamField>
+
+<ParamField body="supplier_data" type="object">
+  Fallback when `supplier_id` is unknown. Resolved by CUI first (with `RO` prefix stripped), then by exact name match.
+  - `name` — supplier name as printed on the document
+  - `cui` — supplier CUI / VAT number, with or without `RO` prefix
+</ParamField>
+
+<ParamField body="reference" type="string">
+  Document number (factura, chitanță, bon fiscal). Used for both exact and `likely` cross-supplier matches.
+</ParamField>
+
+<ParamField body="date" type="string" format="date">
+  Issue date in `YYYY-MM-DD`. Combined with supplier + amount for `strong` matches.
+</ParamField>
+
+<ParamField body="amount" type="number">
+  Net amount (subtotal). Compared with ±0.02 tolerance to forgive rounding.
+</ParamField>
+
+<ParamField body="currency" type="string" default="RON">
+  Three-letter ISO code. Defaults to `RON`.
+</ParamField>
+
+## Match types
+
+| `match_type` | Trigger |
+|---|---|
+| `exact`  | Same supplier + same reference |
+| `strong` | Same supplier + same date + amount within ±0.02 |
+| `likely` | Same reference under a different supplier (review before posting) |
+
+`exact` and `strong` should usually block; `likely` deserves a confirmation but isn't necessarily a true duplicate (e.g. invoice numbers reset per fiscal year across suppliers).
+
+## Response
+
+`duplicate` is `null` when no candidate matches. When populated, the `id` is the CzUid of the existing expense — fetch it via [`GET /expenses/{id}`](./retrieve) for the full record.
+
+```json
+{
+  "data": {
+    "duplicate": {
+      "id":         "Q9hjAB",
+      "reference":  "65776",
+      "date":       "2026-04-25",
+      "amount":     147.53,
+      "currency":   "RON",
+      "match_type": "exact"
+    }
+  }
+}
+```
+
+## Errors
+
+- **400** — invalid JSON body or missing required fields when neither `supplier_id` nor `supplier_data.name` is provided
+- **401** — missing / invalid bearer token
+- **403** — API key lacks `read` permission on expenses

@@ -146,7 +146,9 @@
                       "api-reference/endpoints/expenses/export",
                       "api-reference/endpoints/expenses/attachment",
                       "api-reference/endpoints/expenses/efactura-pdf",
-                      "api-reference/endpoints/expenses/ocr-extract"
+                      "api-reference/endpoints/expenses/ocr-extract",
+                      "api-reference/endpoints/expenses/check-duplicate",
+                      "api-reference/endpoints/expenses/ai-categorize-batch"
                     ]
                   },
                   {
@@ -222,6 +224,17 @@
                     "group": "Settings",
                     "pages": [
                       "api-reference/endpoints/settings/get"
+                    ]
+                  },
+                  {
+                    "group": "Conta",
+                    "pages": [
+                      "api-reference/endpoints/conta/overview",
+                      "api-reference/endpoints/conta/get-profile",
+                      "api-reference/endpoints/conta/sync-profile",
+                      "api-reference/endpoints/conta/list-balance-sheets",
+                      "api-reference/endpoints/conta/get-balance-sheet",
+                      "api-reference/endpoints/conta/sync-balance-sheets"
                     ]
                   }
                 ]

@@ -4796,6 +4796,56 @@ paths:
                       currency:   { type: string }
                       match_type: { type: string, enum: [exact, strong, likely] }
 
+  /expenses/ai-categorize-batch:
+    post:
+      operationId: aiCategorizeExpensesBatch
+      tags: [Expenses]
+      summary: AI-categorize uncategorized expenses
+      description: |
+        Run Claude over every uncategorized expense in the firm and assign
+        a category from the firm's existing list (system + custom). Expenses
+        are batched server-side (`batch_size` per Anthropic call) and the
+        run caps at `cap` total expenses per invocation so a stuck queue
+        can't blow up the bill — call repeatedly until `remaining = 0`.
+
+        The endpoint is idempotent: only expenses with `category_id IS NULL`
+        are touched, so re-running picks up newly created uncategorized
+        rows without re-classifying old ones.
+
+        Available only on deployments with `ANTHROPIC_API_KEY` configured.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                max:
+                  type: integer
+                  description: |
+                    Optional override for the per-call cap. The server still
+                    enforces its own `BATCH_MAX_PER_CALL` ceiling, so very
+                    large values are silently clamped.
+      responses:
+        '200':
+          description: Batch run summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  processed:   { type: integer, description: Expenses inspected this call. }
+                  categorized: { type: integer, description: Expenses that received a category. }
+                  skipped:     { type: integer, description: Expenses Claude declined to classify (low confidence or no match). }
+                  errors:      { type: integer, description: Per-row failures (logged server-side). }
+                  remaining:   { type: integer, description: Uncategorized expenses still in the queue. Call again until 0. }
+                  batch_size:  { type: integer, description: Expenses per Anthropic call (server constant). }
+                  cap:         { type: integer, description: Hard ceiling per invocation (server constant). }
+        '502':
+          description: AI provider unavailable (transient — safe to retry)
+        '503':
+          description: AI categorization not configured on this deployment
+
   /expenses/{id}/attachments:
     post:
       operationId: uploadExpenseAttachment
