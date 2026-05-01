@@ -4802,17 +4802,19 @@ paths:
       tags: [Expenses]
       summary: AI-categorize uncategorized expenses
       description: |
-        Run Claude over every uncategorized expense in the firm and assign
-        a category from the firm's existing list (system + custom). Expenses
-        are batched server-side (`batch_size` per Anthropic call) and the
-        run caps at `cap` total expenses per invocation so a stuck queue
-        can't blow up the bill — call repeatedly until `remaining = 0`.
+        Sweep every uncategorized expense in the firm and assign a category
+        from the firm's existing list (system + custom). Expenses are
+        batched server-side (`batch_size` per classifier call) and the run
+        caps at `cap` total expenses per invocation, so a large backlog can
+        be drained in controlled passes — call repeatedly until
+        `remaining = 0`.
 
         The endpoint is idempotent: only expenses with `category_id IS NULL`
         are touched, so re-running picks up newly created uncategorized
         rows without re-classifying old ones.
 
-        Available only on deployments with `ANTHROPIC_API_KEY` configured.
+        Returns `503 ai_not_configured` on deployments where AI
+        categorization is not enabled.
       requestBody:
         required: false
         content:
@@ -4836,15 +4838,15 @@ paths:
                 properties:
                   processed:   { type: integer, description: Expenses inspected this call. }
                   categorized: { type: integer, description: Expenses that received a category. }
-                  skipped:     { type: integer, description: Expenses Claude declined to classify (low confidence or no match). }
+                  skipped:     { type: integer, description: Classifier declined to assign a category (low confidence or no match). }
                   errors:      { type: integer, description: Per-row failures (logged server-side). }
                   remaining:   { type: integer, description: Uncategorized expenses still in the queue. Call again until 0. }
-                  batch_size:  { type: integer, description: Expenses per Anthropic call (server constant). }
+                  batch_size:  { type: integer, description: Expenses per classifier call (server constant). }
                   cap:         { type: integer, description: Hard ceiling per invocation (server constant). }
         '502':
-          description: AI provider unavailable (transient — safe to retry)
+          description: Classifier unavailable (transient — safe to retry)
         '503':
-          description: AI categorization not configured on this deployment
+          description: AI categorization not enabled on this deployment
 
   /expenses/{id}/attachments:
     post:

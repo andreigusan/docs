@@ -1,18 +1,18 @@
 ---
 title: 'AI-categorize expenses'
 openapi: 'POST /expenses/ai-categorize-batch'
-description: 'Run Claude over every uncategorized expense in the firm and assign a category from the existing list.'
+description: 'Sweep every uncategorized expense in the firm and assign a category from the existing list using AI classification.'
 ---
 
 ## When to use
 
-After bulk-importing expenses (OCR, supplier sync, e-Factura SPV) the `category_id` is often `null`. This endpoint sweeps every such row and asks Claude to pick a category from the firm's existing list — system defaults plus custom categories, merged. Existing categorizations are never overwritten.
+After bulk-importing expenses (OCR, supplier sync, e-Factura SPV) the `category_id` is often `null`. This endpoint sweeps every such row and assigns a category from the firm's existing list — system defaults plus custom categories, merged. Existing categorizations are never overwritten.
 
-Call repeatedly until `remaining = 0`. Each call processes up to `cap` expenses (a server-side constant returned in the response) so a 5000-expense backlog won't run away with the Anthropic bill.
+Call repeatedly until `remaining = 0`. Each call processes up to `cap` expenses (a server-side constant returned in the response), so a large backlog can be drained in controlled passes rather than a single long-running request.
 
 ## Permissions
 
-Requires `write` permission on expenses. Claude runs only on deployments that have `ANTHROPIC_API_KEY` set; otherwise the endpoint returns `503 ai_not_configured`.
+Requires `write` permission on expenses.
 
 ## Request
 
@@ -40,10 +40,10 @@ Requires `write` permission on expenses. Claude runs only on deployments that ha
 |---|---|
 | `processed`   | Expenses inspected this call. |
 | `categorized` | Expenses that received a `category_id`. |
-| `skipped`     | Claude declined to classify (low confidence or no obvious match in the firm's category list). |
+| `skipped`     | Classifier declined to assign a category (low confidence or no obvious match in the firm's list). |
 | `errors`      | Per-row failures — logged server-side, retryable on next call. |
 | `remaining`   | Uncategorized expenses still queued. **Stop when this hits 0.** |
-| `batch_size`  | Expenses per Anthropic call (informational). |
+| `batch_size`  | Expenses per classifier call (informational). |
 | `cap`         | Hard ceiling per invocation (informational). |
 
 ## Driver pattern
@@ -53,7 +53,7 @@ async function categorizeAll(client) {
   while (true) {
     const { data } = await client.post('/expenses/ai-categorize-batch');
     if (data.remaining === 0) return;
-    // Optional: pause briefly to be polite to the AI provider.
+    // Optional: brief pause between passes.
     await new Promise(r => setTimeout(r, 500));
   }
 }
@@ -63,5 +63,5 @@ async function categorizeAll(client) {
 
 - **401** — missing / invalid bearer token
 - **403** — API key lacks `write` permission on expenses
-- **502 `ai_unavailable`** — Anthropic call failed; safe to retry
-- **503 `ai_not_configured`** — deployment has no `ANTHROPIC_API_KEY`
+- **502 `ai_unavailable`** — classifier call failed; safe to retry
+- **503 `ai_not_configured`** — AI categorization is not enabled on this deployment
