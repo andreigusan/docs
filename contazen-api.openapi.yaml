@@ -1547,7 +1547,7 @@ components:
           description: Optional UN/ECE unit code (e.g. H87, KGM).
         unit_price:
           type: number
-          description: Net unit price (excluding VAT).
+          description: Net unit price (excluding VAT). Negative values represent discount rows (e.g. bon fiscal `DISCOUNT 4,40-A`); the sign is preserved through net/VAT/gross.
         vat_rate:
           type: integer
           enum: [0, 5, 9, 11, 19, 21]
@@ -1657,7 +1657,7 @@ components:
             properties:
               name:       { type: string }
               quantity:   { type: number }
-              unit_price: { type: number, description: NET (ex-VAT). }
+              unit_price: { type: number, description: NET (ex-VAT). Negative on discount rows (e.g. bon fiscal `DISCOUNT 4,40-A`). }
               vat_rate:   { type: number }
         warnings:
           type: array
@@ -1679,7 +1679,7 @@ components:
           minimum: 0.0001
         unit_price:
           type: number
-          description: Net unit price (excluding VAT).
+          description: Net unit price (excluding VAT). Negative values are accepted for discount rows (e.g. bon fiscal `DISCOUNT 4,40-A`).
         vat_rate:
           type: integer
           enum: [0, 5, 9, 11, 19, 21]

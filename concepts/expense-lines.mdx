@@ -222,6 +222,11 @@ Switching an expense between flat and itemized:
   **Net** unit price (excluding VAT). The server always treats
   `quantity × unit_price` as the line net; there is no per-line
   `with_vat` flag.
+
+  Negative values are accepted for discount rows — e.g. a Romanian bon
+  fiscal `DISCOUNT 4,40-A` rebate is persisted as a line with
+  `unit_price: -4.40`. The sign carries through to the line's net, VAT,
+  and gross, so the expense total matches the receipt.
 </ParamField>
 
 <ParamField body="items[].vat_rate" type="integer" required>

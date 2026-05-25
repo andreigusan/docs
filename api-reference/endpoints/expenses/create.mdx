@@ -130,7 +130,7 @@ Clients that want to surface a confirmation dialog to the user before POSTing ca
   Each item is an object with:
   - `name` (string, required) — display name for the line
   - `quantity` (number, required, > 0) — supports fractional quantities
-  - `unit_price` (number, required) — **net** unit price (excluding VAT)
+  - `unit_price` (number, required) — **net** unit price (excluding VAT). Negative values are accepted for discount rows (e.g. a Romanian bon fiscal `DISCOUNT 4,40-A` rebate); the sign is preserved through to the line's gross.
   - `vat_rate` (integer, required) — one of 0, 5, 9, 11, 19, 21
   - `description` (string) — optional
   - `unit_code` (string) — optional UN/ECE code (e.g. `H87`, `KGM`)
